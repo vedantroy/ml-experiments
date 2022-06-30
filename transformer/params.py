@@ -7,7 +7,6 @@ params = {
     "widening_factor": 5,
     "heads": 4,
     "layers": 4,
-
     # Training params
     "batch_size": 2,
     "epochs": 2,

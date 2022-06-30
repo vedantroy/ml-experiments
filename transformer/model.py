@@ -1,5 +1,6 @@
 import torch
 import torch.nn as nn
+from helpers import assert_shape
 
 from params import params
 
@@ -13,8 +14,9 @@ class MultiHeadAttention(nn.Module):
         super().__init__()
 
         self.mask = mask
-        self.d_k = d_model / num_heads
-        assert self.d_k.is_integer()
+        d_k = d_model / num_heads
+        assert d_k.is_integer()
+        self.d_k = int(d_k)
         self.num_heads = num_heads
 
         # TODO: Why no biases?
@@ -41,9 +43,7 @@ class MultiHeadAttention(nn.Module):
         Q, K, V = self.Wq(x), self.Wk(x), self.Wv(x)
 
         expected_shape = (batch_size, sequence_len, d_model)
-        assert Q.shape == expected_shape
-        assert K.shape == expected_shape
-        assert V.shape == expected_shape
+        assert_shape((Q, K, V), expected_shape)
 
         Q, K, V = (
             self.split_into_heads(Q),
@@ -51,17 +51,15 @@ class MultiHeadAttention(nn.Module):
             self.split_into_heads(V),
         )
 
-        expected_shape == (batch_size, self.num_heads, sequence_len, self.d_k)
-        assert Q.shape == expected_shape
-        assert K.shape == expected_shape
-        assert V.shape == expected_shape
+        expected_shape = (batch_size, self.num_heads, sequence_len, self.d_k)
+        assert_shape((Q, K, V), expected_shape)
 
         K_T = K.transpose(2, 3)
         assert K_T.shape == (batch_size, self.num_heads, self.d_k, sequence_len)
         # For high-dimensional tensors, the matrix multiplication can only be
         # operated on the last two dimensions, which requires the previous dimensions to be equal.
         query_attention_to_keys = Q @ K_T
-        query_attention_to_keys *= 1 / torch.sqrt(self.d_k)
+        query_attention_to_keys *= (1 / (self.d_k ** 0.5))
 
         assert query_attention_to_keys.shape == (
             batch_size,
@@ -81,19 +79,13 @@ class MultiHeadAttention(nn.Module):
         )
 
         combined_value_vectors = query_attention_to_keys_normalized @ V
-        assert combined_value_vectors.shape == (
-            batch_size,
-            self.num_heads,
-            sequence_len,
-            self.d_k,
-        )
-
+        assert_shape(combined_value_vectors, expected_shape)
         transposed = combined_value_vectors.transpose(1, 2)
-        assert transposed.shape == (batch_size, sequence_len, self.num_heads, self.d_k)
-        concatted = transposed.view(batch_size, sequence_len, d_model)
+        assert_shape(transposed, (batch_size, sequence_len, self.num_heads, self.d_k))
+        concatted = transposed.reshape(batch_size, sequence_len, d_model)
 
         out = self.linear(concatted)
-        assert out.shape == orig_shape
+        assert_shape(out, orig_shape)
         return out
 
     def split_into_heads(self, tensor):
@@ -105,21 +97,23 @@ class MultiHeadAttention(nn.Module):
 
 
 class DecoderLayer(nn.Module):
-    def __init__(self, num_heads: int, d_model: int, widening_factor: int, mask: torch.Tensor):
+    def __init__(
+        self, num_heads: int, d_model: int, widening_factor: int, mask: torch.Tensor
+    ):
         super().__init__()
         self.d_ff = widening_factor * d_model
 
         self.attention = MultiHeadAttention(d_model, num_heads, mask)
         # TODO: How was this epsilon chosen?
         # TODO: We need to layer normalization w/o learnable parameters
-        self.norm1 = nn.LayerNorm(d_model, eps=1e-6)
+        self.norm1 = nn.LayerNorm(d_model, eps=1e-6, elementwise_affine=False)
 
         # https://stats.stackexchange.com/questions/485910/what-is-the-role-of-feed-forward-layer-in-transformer-neural-network-architectur
         self.lin1 = nn.Linear(d_model, self.d_ff)
         self.relu = nn.ReLU()
         self.lin2 = nn.Linear(self.d_ff, d_model)
         # TODO: We need to layer normalization w/o learnable parameters
-        self.norm2 = nn.LayerNorm(d_model, eps=1e-6)
+        self.norm2 = nn.LayerNorm(d_model, eps=1e-6, elementwise_affine=False)
 
     def forward(self, x):
         batch_size, sequence_len, d_model = (
@@ -154,7 +148,7 @@ class Transformer(nn.Module):
         vocab_size: int,
         num_heads: int,
         d_model: int,
-	widening_factor: int,
+        widening_factor: int,
         sequence_len: int,
         layers: int,
         mask: torch.Tensor,
@@ -164,15 +158,16 @@ class Transformer(nn.Module):
         self.vocab_embedding = nn.Embedding(
             num_embeddings=vocab_size, embedding_dim=d_model
         )
-        self.positional_embedding = nn.Embedding(
-            num_embeddings=sequence_len, embedding_dim=d_model
-        )
+        self.positional_embedding = torch.zeros((sequence_len, d_model))
+        # Our `initialize_weights` function doesn't cover this b/c it's a module from torch.nn (I think?)
+        nn.init.kaiming_uniform_(self.positional_embedding)
 
         assert self.vocab_embedding.weight.shape == (vocab_size, d_model)
-        assert self.positional_embedding.weight.shape == (sequence_len, d_model)
+        assert self.positional_embedding.shape == (sequence_len, d_model)
 
         self.decoder_layers = nn.ModuleList(
-            DecoderLayer(num_heads, d_model, widening_factor, mask) for _ in range(layers)
+            DecoderLayer(num_heads, d_model, widening_factor, mask)
+            for _ in range(layers)
         )
 
         # Maps the output embeddings back to tokens
@@ -192,11 +187,12 @@ class Transformer(nn.Module):
         assert params["batch_size"] == batch_size
         assert params["sequence_len"] == sequence_len
 
-        embeddings = self.vocab_embedding(x) + self.positional_embedding(x)
+        embeddings = self.vocab_embedding(x)
         assert embeddings.shape == (batch_size, sequence_len, params["d_model"])
+        embeddings_with_positions = embeddings + self.positional_embedding
 
-        decoder_output = embeddings
+        decoder_output = embeddings_with_positions
         for layer in self.decoder_layers:
-            decoder_output = layer(embeddings)
+            decoder_output = layer(decoder_output)
 
         return self.linear(decoder_output)
