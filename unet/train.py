@@ -6,6 +6,7 @@ from torch import nn
 from torch.utils.data import DataLoader, random_split
 import random
 from tqdm import tqdm
+import wandb
 
 from model import UNet
 from data import BasicDataset
@@ -20,6 +21,11 @@ def train_model(
     learning_rate: float,
     percent_of_data_used_for_validation: float,
 ):
+    using_cuda = "cuda" if torch.cuda.is_available() else "cpu"
+    device = torch.device(using_cuda)
+    model.to(device=device)
+    logging.info(f"Training on device: {device}")
+
     n_val = int(len(dataset) * (percent_of_data_used_for_validation / 100))
     n_train = len(dataset) - int(n_val)
     assert n_train + n_val == len(dataset)
@@ -39,7 +45,7 @@ def train_model(
         batch_size=batch_size,
         num_workers=4,
         # Only useful if you're training on GPU
-        pin_memory=False,
+        pin_memory=using_cuda,
     )
     # shuffle=True causes the data to be reshuffled at every epoch
     train_loader = DataLoader(train_set, shuffle=True, **loader_args)
@@ -82,7 +88,7 @@ def train_model(
             # 1 1 0 1 1 <= probability pixel is 1st class
             # 0 0 1 0 0 <= probability pixel is 2nd class
             # and `probs` might look like:
-            # 0.9 0.9 0.2 0.8 0.7 
+            # 0.9 0.9 0.2 0.8 0.7
             # 0.1 0.1 0.8 0.2 0.3
 
             probs = F.softmax(masks_pred, dim=1).float()
@@ -115,10 +121,6 @@ if __name__ == "__main__":
     model = UNet(n_in_channels=3, n_classes=2)
     # TODO: Do check-pointing
     model.apply(initialize_weights)
-
-    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-    model.to(device=device)
-    logging.info(f"Training on device: {device}")
 
     train_model(
         model=model,
