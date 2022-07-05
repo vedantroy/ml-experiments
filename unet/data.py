@@ -73,9 +73,9 @@ class BasicDataset(Dataset):
         mask = self.preprocess(mask, self.scale_img_by, is_mask=True)
 
         return dict(
-            # TODO: mask is long but and image is float, why?
-            # also the contiguous thing
+            # TODO: why contiguous?
             # nn.conv2D requires a float tensor, the default tensor is a double
             image=torch.as_tensor(img.copy()).float(),
-            mask=torch.as_tensor(mask.copy()),
+            # nn.CrossEntropy loss requires tensor type `Long`, the tensor type of mask by default is `Byte`
+            mask=torch.as_tensor(mask.copy()).long(),
         )

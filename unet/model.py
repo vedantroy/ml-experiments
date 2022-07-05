@@ -115,6 +115,7 @@ class Up(nn.Module):
 class UNet(nn.Module):
     def __init__(self, n_in_channels, n_classes):
         super().__init__()
+        self.n_classes = n_classes
         self.in_conv = DoubleConv(n_in_channels, 64, 64)
         self.down1 = Down(64, 128, 128, 1)
         self.down2 = Down(128, 256, 256, 2)
