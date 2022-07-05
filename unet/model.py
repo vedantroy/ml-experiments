@@ -1,4 +1,5 @@
 import torch
+import torch.nn.functional as F
 from torch import nn
 
 
@@ -8,11 +9,11 @@ class DoubleConv(nn.Module):
         self.c_in = c_in
         self.c_out = c_out
         k = 3
-        # padding is better but I'm trying to follow the paper pretty strictly
-        # https://github.com/milesial/Pytorch-UNet/issues/68
-        c1 = nn.Conv2d(c_in, c_mid, kernel_size=k)
+        # We add padding b/c we want to preserve the input dimensions
+        # Why? This makes calculating the loss easier
+        c1 = nn.Conv2d(c_in, c_mid, kernel_size=k, padding=1, bias=False)
         assert c1.weight.shape == (c_mid, c_in, k, k)
-        c2 = nn.Conv2d(c_mid, c_out, kernel_size=k)
+        c2 = nn.Conv2d(c_mid, c_out, kernel_size=k, padding=1, bias=False)
         assert c2.weight.shape == (c_out, c_mid, k, k)
         self.conv = nn.Sequential(
             c1,
@@ -25,12 +26,17 @@ class DoubleConv(nn.Module):
         batch_size, in_channels, W, H = x.shape
         assert in_channels == self.c_in
         y = self.conv(x)
-        assert y.shape == (batch_size, self.c_out, W - 4, H - 4)
+
+        # This assert is only true iff we don't use padding
+        # assert y.shape == (batch_size, self.c_out, W - 4, H - 4)
+        assert y.shape == (batch_size, self.c_out, W, H)
         return y
 
 
 class Down(nn.Module):
-    def __init__(self, in_channels: int, mid_channels: int, out_channels: int, level: int):
+    def __init__(
+        self, in_channels: int, mid_channels: int, out_channels: int, level: int
+    ):
         super().__init__()
         # For debugging
         self.level = level
@@ -72,18 +78,36 @@ class Up(nn.Module):
 
         _, prevC, prevW, prevH = from_skip_connection.shape
         assert prevC + C == self.c_in
-        assert prevW > W
-        assert prevH > H
-        diff_W = (prevW - W) // 2
-        diff_H = (prevH - H) // 2
+        assert prevW >= W and prevH >= H
+        # x - floor(x/2) != (x/2) b/c x might be odd
+        diff_W = prevW - W
+        diff_H = prevH - H
+        # for some reason, there's sometimes a 1-pixel difference in input/out dimensions
+        W_left, W_right = diff_W // 2, diff_W - diff_W // 2
+        H_left, H_right = diff_H // 2, diff_H - diff_H // 2
+        assert W_left + W_right == diff_W
+        assert H_left + H_right == diff_H
 
         # The original image is too big since convolutions downsize the width/height
-        # The alternative is to pad the output with zeroes, this prevents loss of information
-        # which is theoretically better (practice seems to show no difference?)
-        cropped = from_skip_connection[:, :, diff_W : diff_W + W, diff_H : diff_H + H]
+        # ^ This is no longer true since we changed the convolutions to not downsize the input
+        # crop the input to match
+        # cropped = from_skip_connection[:, :, diff_W : diff_W + W, diff_H : diff_H + H]
+        # concatted = torch.cat([cropped, upscaled], dim=1)
+        # assert concatted.shape == (B, self.c_in, W, H)
 
-        concatted = torch.cat([cropped, upscaled], dim=1)
-        assert concatted.shape == (B, self.c_in, W, H)
+        # pad the last 2 dimensions w/ zeroes
+        # to make up for the pixels lost due to convolutions
+        # the 1st 2 elements in the tuple correspond to the padding of the last dimension
+        # the 3rd/4th elements correspond to padding of 2nd-to-last dimension, etc.
+        padded = F.pad(
+            upscaled,
+            (H_left, H_right, W_left, W_right),
+            mode="constant",
+            value=0,
+        )
+        concatted = torch.cat([from_skip_connection, padded], dim=1)
+        assert concatted.shape == (B, self.c_in, prevW, prevH)
+
         return self.conv(concatted)
 
 
@@ -104,22 +128,31 @@ class UNet(nn.Module):
 
     def forward(self, x):
         _, _, W, H = x.shape
-        x_out = self.in_conv(x)
-        x1_out = self.down1(x_out)
-        x2_out = self.down2(x1_out)
-        x3_out = self.down3(x2_out)
-        x4_out = self.down4(x3_out)
+        x1 = self.in_conv(x)
+        x2 = self.down1(x1)
+        x3 = self.down2(x2)
+        x4 = self.down3(x3)
+        x5 = self.down4(x4)
 
-        x = self.up1(x4_out, x3_out)
-        x = self.up2(x, x2_out)
-        x = self.up3(x, x1_out)
-        x = self.up4(x, x_out)
+        x = self.up1(x5, x4)
+        x = self.up2(x, x3)
+        x = self.up3(x, x2)
+        x = self.up4(x, x1)
 
-        x =  self.classifier(x)
-        _ ,_, finalW, finalH = x.shape
+        logits = self.classifier(x)
+        _, _, finalW, finalH = logits.shape
 
+        # The convolution layers in a UNet will decrease the size of the input (each convolution decreases side length by 2)
+        # There are 2 ways to handle this:
+        # - let the output be smaller & crop the residual connections that go "across" the U before concatting them to each output layer
+        # - pad the output with zeroes before concatting it to the output of the residual connection
+        # I switched to the 2nd option b/c it made calculating loss easier
+
+        # This comment + assert was from when I was taking the 1st approach:
         # In the original UNet paper, the image goes from (572, 572) => (388, 388)
         # 572 - 388 = 184
         # My net decreases each side by 188 (I suspect there is an extra convolution in here?)
-        assert (184 <= W - finalW <= 188) and (184 <= H - finalH <= 188)
-        return x
+        # assert (184 <= W - finalW <= 188) and (184 <= H - finalH <= 188)
+
+        assert W == finalW and H == finalH
+        return logits

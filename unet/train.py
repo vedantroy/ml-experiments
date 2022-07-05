@@ -50,7 +50,9 @@ def train_model(
             assert masks.shape == (actual_batch_size, W, H)
 
             preds = model(imgs)
-            print(preds.shape)
+            _ ,_, predW, predH = preds.shape
+            assert predW == W and predH == H
+            print("1 done!")
 
 
 # https://github.com/hyunwoongko/transformer/blob/master/train.py
