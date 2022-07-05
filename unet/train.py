@@ -65,6 +65,9 @@ def train_model(
             assert actual_batch_size == batch_size
             assert masks.shape == (actual_batch_size, W, H)
 
+            imgs = imgs.to(device=device, dtype=torch.float32)
+            masks = masks.to(device=device, dtype=torch.long)
+
             # `set_to_none=True` boosts performance
             optimizer.zero_grad(set_to_none=True)
             masks_pred = model(imgs)
