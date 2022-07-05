@@ -83,6 +83,7 @@ class Up(nn.Module):
         diff_W = prevW - W
         diff_H = prevH - H
         # for some reason, there's sometimes a 1-pixel difference in input/out dimensions
+        # we deal w/ this by either cropping (commented out) or padding
         W_left, W_right = diff_W // 2, diff_W - diff_W // 2
         H_left, H_right = diff_H // 2, diff_H - diff_H // 2
         assert W_left + W_right == diff_W
