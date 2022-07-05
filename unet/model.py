@@ -15,12 +15,7 @@ class DoubleConv(nn.Module):
         assert c1.weight.shape == (c_mid, c_in, k, k)
         c2 = nn.Conv2d(c_mid, c_out, kernel_size=k, padding=1, bias=False)
         assert c2.weight.shape == (c_out, c_mid, k, k)
-        self.conv = nn.Sequential(
-            c1,
-            nn.ReLU(inplace=True),
-            c2,
-            nn.ReLU(inplace=True),
-        )
+        self.conv = nn.Sequential(c1, nn.ReLU(inplace=True), c2, nn.ReLU(inplace=True),)
 
     def forward(self, x):
         batch_size, in_channels, W, H = x.shape
@@ -101,10 +96,7 @@ class Up(nn.Module):
         # the 1st 2 elements in the tuple correspond to the padding of the last dimension
         # the 3rd/4th elements correspond to padding of 2nd-to-last dimension, etc.
         padded = F.pad(
-            upscaled,
-            (H_left, H_right, W_left, W_right),
-            mode="constant",
-            value=0,
+            upscaled, (H_left, H_right, W_left, W_right), mode="constant", value=0,
         )
         concatted = torch.cat([from_skip_connection, padded], dim=1)
         assert concatted.shape == (B, self.c_in, prevW, prevH)

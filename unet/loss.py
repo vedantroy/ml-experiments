@@ -1,6 +1,7 @@
 import torch
 from torch import Tensor
 
+
 def dice_coeff(input: Tensor, target: Tensor, epsilon: float):
     # Average of Dice coefficient for all batches, or for a single mask
     assert input.size() == target.size()
@@ -15,12 +16,13 @@ def dice_coeff(input: Tensor, target: Tensor, epsilon: float):
         # b/c we need to return a tensor w/ a `backward` function
         sets_sum = 2 * inter
 
-    # not sure what the purpose of epsilon is 
+    # not sure what the purpose of epsilon is
     # I think it helps smooth the derivative &
     # is supposed to handle case where denominator is 0
     # altho we already return 1 in that case?
     # https://forums.fast.ai/t/understanding-the-dice-coefficient/5838
     return (2 * inter + epsilon) / (sets_sum + epsilon)
+
 
 def multiclass_dice_coeff(input: Tensor, target: Tensor, epsilon: float):
     # Average of Dice coefficient for all classes

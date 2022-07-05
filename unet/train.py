@@ -12,15 +12,19 @@ from model import UNet
 from data import BasicDataset
 from loss import dice_loss
 
+
 def train_model(
-    model,
-    device,
-    dataset,
-    batch_size: int,
-    epochs: int,
-    learning_rate: float,
-    percent_of_data_used_for_validation: float,
+    epochs, batch_size, learning_rate, percent_of_data_used_for_validation, scale,
 ):
+    dataset = BasicDataset(
+        images_dir="./data/imgs", masks_dir="./data/masks", scale=0.5
+    )
+    logging.info(f"{len(dataset)} training images")
+
+    model = UNet(n_in_channels=3, n_classes=2)
+    # TODO: Do check-pointing
+    model.apply(initialize_weights)
+
     using_cuda = "cuda" if torch.cuda.is_available() else "cpu"
     device = torch.device(using_cuda)
     model.to(device=device)
@@ -64,6 +68,11 @@ def train_model(
 
     criterion = nn.CrossEntropyLoss()
 
+    # batches_per_epoch = len(train_loader)
+    # If your training gets much slower, increase `log_freq`
+    wandb.watch(model, criterion=None, log="all", log_freq=10)
+    batches_seen = 0
+
     for epoch in range(epochs):
         for batch in tqdm(train_loader, desc=f"epoch {epoch}/{epochs}"):
             imgs, masks = batch["image"], batch["mask"]
@@ -78,7 +87,7 @@ def train_model(
             optimizer.zero_grad(set_to_none=True)
             masks_pred = model(imgs)
 
-            _ , out_classes, predW, predH = masks_pred.shape
+            _, out_classes, predW, predH = masks_pred.shape
             assert predW == W and predH == H and out_classes == model.n_classes
 
             # Imagine if the mask is:
@@ -96,11 +105,44 @@ def train_model(
 
             # this is only true if N_CLASSES=2
             x, y = random.randrange(0, W), random.randrange(0, H)
-            assert 1. - (probs[0][0][x][y] + probs[0][1][x][y]).item() < 1e-6
+            assert 1.0 - (probs[0][0][x][y] + probs[0][1][x][y]).item() < 1e-6
 
-            loss = criterion(masks_pred, masks) + dice_loss(probs, ground_truth)
+            loss_cross_entropy = criterion(masks_pred, masks)
+            loss_dice = dice_loss(probs, ground_truth)
+            loss = loss_cross_entropy + loss_dice
             loss.backward()
             optimizer.step()
+
+            batches_seen += 1
+
+            to_log = {
+                "loss_combined": loss.item(),
+                "loss_cross_entropy": loss_cross_entropy,
+                "loss_dice": loss_dice,
+                "step": batches_seen,
+                "epoch": epoch,
+            }
+
+            if batches_seen % 50 == 1:
+                wandb.log(
+                    {
+                        **to_log,
+                        "image": wandb.Image(imgs[0].cpu()),
+                        "masks": {
+                            "true": wandb.Image(masks[0].float().cpu()),
+                            "pred": wandb.Image(
+                                # TODO: Check if we can do softmax(masks_pred[0], dim=0)
+                                torch.softmax(masks_pred, dim=1)
+                                .argmax(dim=1)[0]
+                                .float()
+                                .cpu()
+                            ),
+                        },
+                    }
+                )
+            else:
+                wandb.log(to_log)
+
 
 # https://github.com/hyunwoongko/transformer/blob/master/train.py
 def initialize_weights(m):
@@ -113,21 +155,18 @@ def initialize_weights(m):
 if __name__ == "__main__":
     logging.basicConfig(level=logging.INFO)
 
-    dataset = BasicDataset(
-        images_dir="./data/imgs", masks_dir="./data/masks", scale=0.5
-    )
-    logging.info(f"{len(dataset)} training images")
-
-    model = UNet(n_in_channels=3, n_classes=2)
-    # TODO: Do check-pointing
-    model.apply(initialize_weights)
-
-    train_model(
-        model=model,
-        device=device,
-        dataset=dataset,
+    hyperparameters = dict(
         epochs=5,
+        # A NVIDIA Quadro 4000 8GB can handle a batch size of 2
+        # but it seems to be slower (30min per epoch vs 26)
         batch_size=1,
-        learning_rate=1e-5,
         percent_of_data_used_for_validation=10,
+        # how to scale the images by before passing them to the model
+        # kind of a hyperparam?
+        scale=0.5,
+        learning_rate=1e-3,
     )
+    # as long as the process exits unsuccesfully, wandb will automatically resume the run
+    with wandb.init(project="UNet", resume=True, config=hyperparameters):
+        config = wandb.config
+        train_model(**config)
