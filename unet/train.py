@@ -44,12 +44,13 @@ def train_model(
 
     for epoch in range(epochs):
         for batch in tqdm(train_loader, desc=f"epoch {epoch}/{epochs}"):
-            img, mask = batch["image"], batch["mask"]
-            actual_batch_size, channels, W, H = img.shape
+            imgs, masks = batch["image"], batch["mask"]
+            actual_batch_size, channels, W, H = imgs.shape
             assert actual_batch_size == batch_size
-            assert mask.shape == (actual_batch_size, W, H)
+            assert masks.shape == (actual_batch_size, W, H)
 
-            model(img)
+            preds = model(imgs)
+            print(preds.shape)
 
 
 # https://github.com/hyunwoongko/transformer/blob/master/train.py

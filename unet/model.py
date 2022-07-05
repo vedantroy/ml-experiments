@@ -103,6 +103,7 @@ class UNet(nn.Module):
         assert self.classifier.weight.shape == (n_classes, 64, 1, 1)
 
     def forward(self, x):
+        _, _, W, H = x.shape
         x_out = self.in_conv(x)
         x1_out = self.down1(x_out)
         x2_out = self.down2(x1_out)
@@ -114,4 +115,11 @@ class UNet(nn.Module):
         x = self.up3(x, x1_out)
         x = self.up4(x, x_out)
 
-        return self.classifier(x)
+        x =  self.classifier(x)
+        _ ,_, finalW, finalH = x.shape
+
+        # In the original UNet paper, the image goes from (572, 572) => (388, 388)
+        # 572 - 388 = 184
+        # My net decreases each side by 188 (I suspect there is an extra convolution in here?)
+        assert (184 <= W - finalW <= 188) and (184 <= H - finalH <= 188)
+        return x
