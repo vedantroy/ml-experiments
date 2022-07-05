@@ -105,7 +105,7 @@ if __name__ == "__main__":
     logging.basicConfig(level=logging.INFO)
 
     dataset = BasicDataset(
-        images_dir="./data/train", masks_dir="./data/train_masks", scale=0.5
+        images_dir="./data/imgs", masks_dir="./data/masks", scale=0.5
     )
     logging.info(f"{len(dataset)} training images")
 
