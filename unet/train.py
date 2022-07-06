@@ -1,24 +1,25 @@
 from pathlib import Path
 import argparse
 import logging
+# import contextlib
+import random
+
 import torch
 import torch.nn.functional as F
 from torch import optim
 from torch import nn
 from torch.utils.data import DataLoader, random_split
-import random
 from tqdm import tqdm
 import wandb
 
-from evaluate import evaluate
+from validation import evaluate
 from model import UNet
 from data import BasicDataset
 from loss import dice_loss
 from utils import convert_mask_to_ground_truth
 
 # These need to be global so we can save them
-BATCHES_SEEN = EPOCH = MODEL = OPTIMIZER = None
-
+BATCHES_SEEN = EPOCH = MODEL = OPTIMIZER = GRAD_SCALER = SAMPLE_ARG = None
 
 def train_model(
     epochs,
@@ -26,9 +27,10 @@ def train_model(
     learning_rate,
     percent_of_data_used_for_validation,
     scale,
+    amp,
     checkpoint,
 ):
-    global BATCHES_SEEN, EPOCH, MODEL, OPTIMIZER
+    global BATCHES_SEEN, EPOCH, MODEL, OPTIMIZER, GRAD_SCALER, SAMPLE_ARG
 
     dataset = BasicDataset(
         images_dir="./data/imgs", masks_dir="./data/masks", scale=scale
@@ -83,6 +85,10 @@ def train_model(
     if checkpoint:
         OPTIMIZER.load_state_dict(checkpoint["optimizer_state_dict"])
 
+    GRAD_SCALER = torch.cuda.amp.GradScaler(enabled=amp)
+    if checkpoint:
+        GRAD_SCALER.load_state_dict(checkpoint["grad_scaler_state_dict"])
+
     # The dice-coefficient (how much 2 sets intersect)
     # is good for forcing the segmentation to be sharp b/c it
     # only cares about the relative overlap between the prediction & ground truth
@@ -106,15 +112,14 @@ def train_model(
     MODEL.train()
     for epoch in range(start_epoch, epochs):
         EPOCH = epoch
-        for batch_idx, batch in tqdm(
-            enumerate(train_loader), desc=f"epoch {epoch}/{epochs}"
-        ):
+        for batch_idx, batch in enumerate(tqdm(train_loader, desc=f"epoch {epoch}/{epochs}")):
             if batches_to_skip > 0:
                 # print(f"Skipping {batches_to_skip} more batches")
                 batches_to_skip -= 1
                 continue
 
             imgs, masks = batch["image"], batch["mask"]
+            SAMPLE_ARG = imgs
             actual_batch_size, channels, W, H = imgs.shape
             assert actual_batch_size == batch_size
             assert masks.shape == (actual_batch_size, W, H)
@@ -124,33 +129,37 @@ def train_model(
 
             # `set_to_none=True` boosts performance
             OPTIMIZER.zero_grad(set_to_none=True)
-            masks_pred = MODEL(imgs)
 
-            _, out_classes, predW, predH = masks_pred.shape
-            assert predW == W and predH == H and out_classes == MODEL.n_classes
+            with torch.cuda.amp.autocast(enabled=amp):
+                masks_pred = MODEL(imgs)
 
-            # Imagine if the mask is:
-            # 0 0 1 0 0
-            # So, the center pixel is the car/whatever
-            # `ground_truth.permute(...)` will look like:
-            # 1 1 0 1 1 <= probability pixel is 1st class
-            # 0 0 1 0 0 <= probability pixel is 2nd class
-            # and `probs` might look like:
-            # 0.9 0.9 0.2 0.8 0.7
-            # 0.1 0.1 0.8 0.2 0.3
+                _, out_classes, predW, predH = masks_pred.shape
+                assert predW == W and predH == H and out_classes == MODEL.n_classes
 
-            probs = F.softmax(masks_pred, dim=1).float()
-            ground_truth = convert_mask_to_ground_truth(masks, MODEL.n_classes)
+                # Imagine if the mask is:
+                # 0 0 1 0 0
+                # So, the center pixel is the car/whatever
+                # `ground_truth.permute(...)` will look like:
+                # 1 1 0 1 1 <= probability pixel is 1st class
+                # 0 0 1 0 0 <= probability pixel is 2nd class
+                # and `probs` might look like:
+                # 0.9 0.9 0.2 0.8 0.7
+                # 0.1 0.1 0.8 0.2 0.3
 
-            # this is only true if N_CLASSES=2
-            x, y = random.randrange(0, W), random.randrange(0, H)
-            assert 1.0 - (probs[0][0][x][y] + probs[0][1][x][y]).item() < 1e-6
+                probs = F.softmax(masks_pred, dim=1).float()
+                ground_truth = convert_mask_to_ground_truth(masks, MODEL.n_classes)
 
-            loss_cross_entropy = criterion(masks_pred, masks)
-            loss_dice = dice_loss(probs, ground_truth)
-            loss = loss_cross_entropy + loss_dice
-            loss.backward()
-            OPTIMIZER.step()
+                # this is only true if N_CLASSES=2
+                # x, y = random.randrange(0, W), random.randrange(0, H)
+                # assert 1.0 - (probs[0][0][x][y] + probs[0][1][x][y]).item() < 1e-6
+
+                loss_cross_entropy = criterion(masks_pred, masks)
+                loss_dice = dice_loss(probs, ground_truth)
+                loss = loss_cross_entropy + loss_dice
+
+            GRAD_SCALER.scale(loss).backward()
+            GRAD_SCALER.step(OPTIMIZER)
+            GRAD_SCALER.update()
 
             BATCHES_SEEN += 1
 
@@ -246,6 +255,7 @@ if __name__ == "__main__":
             # Folk wisdom for adam's learning rate
             # TODO: do hyper-parameter tuning or something?
             learning_rate=3e-4,
+            amp=False,
         )
         if not checkpoint
         else checkpoint["hyperparameters"]
@@ -273,6 +283,7 @@ if __name__ == "__main__":
             "epoch": EPOCH,
             "model_state_dict": MODEL.state_dict(),
             "optimizer_state_dict": OPTIMIZER.state_dict(),
+            "grad_scaler_state_dict": GRAD_SCALER.state_dict(),
             "hyperparameters": hyperparameters,
         },
         path / f"{run_id}.checkpoint",
@@ -281,3 +292,12 @@ if __name__ == "__main__":
 
     if throw:
         raise throw
+    else:
+        model_path = path / f"{run_id}.pt"
+        model_onnx_path = path / f"{run_id}.onnx"
+        torch.save(MODEL.state_dict(), model_path)
+        torch.onnx.export(MODEL, SAMPLE_ARG, model_onnx_path)
+        wandb.save(model_path)
+        wandb.save(model_onnx_path)
+
+
