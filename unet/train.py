@@ -1,3 +1,5 @@
+from pathlib import Path
+import argparse
 import logging
 import torch
 import torch.nn.functional as F
@@ -12,22 +14,35 @@ from model import UNet
 from data import BasicDataset
 from loss import dice_loss
 
+# These need to be global so we can save them
+BATCHES_SEEN = EPOCH = MODEL = OPTIMIZER = None
 
 def train_model(
-    epochs, batch_size, learning_rate, percent_of_data_used_for_validation, scale,
+    epochs,
+    batch_size,
+    learning_rate,
+    percent_of_data_used_for_validation,
+    scale,
+    checkpoint,
 ):
+    global BATCHES_SEEN, EPOCH, MODEL, OPTIMIZER
+
     dataset = BasicDataset(
         images_dir="./data/imgs", masks_dir="./data/masks", scale=0.5
     )
     logging.info(f"{len(dataset)} training images")
 
-    model = UNet(n_in_channels=3, n_classes=2)
-    # TODO: Do check-pointing
-    model.apply(initialize_weights)
+    MODEL = UNet(n_in_channels=3, n_classes=2)
+    if checkpoint:
+        MODEL.load_state_dict(checkpoint["model_state_dict"])
+    else:
+        # TODO: Do check-pointing
+        MODEL.apply(initialize_weights)
+    MODEL.train()
 
     using_cuda = "cuda" if torch.cuda.is_available() else "cpu"
     device = torch.device(using_cuda)
-    model.to(device=device)
+    MODEL.to(device=device)
     logging.info(f"Training on device: {device}")
 
     n_val = int(len(dataset) * (percent_of_data_used_for_validation / 100))
@@ -56,7 +71,9 @@ def train_model(
     val_loader = DataLoader(val_set, shuffle=False, **loader_args)
 
     # adamW > adam -- https://www.fast.ai/2018/07/02/adam-weight-decay/#implementing-adamw
-    optimizer = optim.AdamW(model.parameters(), lr=learning_rate)
+    OPTIMIZER = optim.AdamW(MODEL.parameters(), lr=learning_rate)
+    if checkpoint:
+        OPTIMIZER.load_state_dict(checkpoint["optimizer_state_dict"])
 
     # The dice-coefficient (how much 2 sets intersect)
     # is good for forcing the segmentation to be sharp b/c it
@@ -70,11 +87,20 @@ def train_model(
 
     # batches_per_epoch = len(train_loader)
     # If your training gets much slower, increase `log_freq`
-    wandb.watch(model, criterion=None, log="all", log_freq=10)
-    batches_seen = 0
+    wandb.watch(MODEL, criterion=None, log="all", log_freq=10)
+    BATCHES_SEEN = 0 if not checkpoint else checkpoint["batches_seen"]
+    start_epoch = 0 if not checkpoint else checkpoint["epoch"]
+    batches_per_epoch = len(train_loader)
+    batches_to_skip = 0 if not checkpoint else BATCHES_SEEN % (epoch * batches_per_epoch)
 
-    for epoch in range(epochs):
+    for epoch in range(start_epoch, epochs):
+        EPOCH = epoch
         for batch in tqdm(train_loader, desc=f"epoch {epoch}/{epochs}"):
+            if batches_to_skip > 0:
+                print(f"Skipping {batches_to_skip} more batches")
+                batches_to_skip -= 1
+                continue
+
             imgs, masks = batch["image"], batch["mask"]
             actual_batch_size, channels, W, H = imgs.shape
             assert actual_batch_size == batch_size
@@ -84,11 +110,11 @@ def train_model(
             masks = masks.to(device=device, dtype=torch.long)
 
             # `set_to_none=True` boosts performance
-            optimizer.zero_grad(set_to_none=True)
-            masks_pred = model(imgs)
-
+            OPTIMIZER.zero_grad(set_to_none=True)
+            masks_pred = MODEL(imgs)
+ 
             _, out_classes, predW, predH = masks_pred.shape
-            assert predW == W and predH == H and out_classes == model.n_classes
+            assert predW == W and predH == H and out_classes == MODEL.n_classes
 
             # Imagine if the mask is:
             # 0 0 1 0 0
@@ -101,7 +127,7 @@ def train_model(
             # 0.1 0.1 0.8 0.2 0.3
 
             probs = F.softmax(masks_pred, dim=1).float()
-            ground_truth = F.one_hot(masks, model.n_classes).permute(0, 3, 1, 2).float()
+            ground_truth = F.one_hot(masks, MODEL.n_classes).permute(0, 3, 1, 2).float()
 
             # this is only true if N_CLASSES=2
             x, y = random.randrange(0, W), random.randrange(0, H)
@@ -111,20 +137,20 @@ def train_model(
             loss_dice = dice_loss(probs, ground_truth)
             loss = loss_cross_entropy + loss_dice
             loss.backward()
-            optimizer.step()
+            OPTIMIZER.step()
 
-            batches_seen += 1
+            BATCHES_SEEN += 1
 
             to_log = {
                 "loss_combined": loss.item(),
                 "loss_cross_entropy": loss_cross_entropy,
                 "loss_dice": loss_dice,
-                "step": batches_seen,
+                "step": BATCHES_SEEN,
                 "epoch": epoch,
-                "learning_rate": optimizer.param_groups[0]['lr']
+                "learning_rate": OPTIMIZER.param_groups[0]["lr"],
             }
 
-            if batches_seen % 50 == 1:
+            if BATCHES_SEEN % 50 == 1:
                 wandb.log(
                     {
                         **to_log,
@@ -153,21 +179,67 @@ def initialize_weights(m):
         nn.init.kaiming_uniform_(m.weight.data)
 
 
-if __name__ == "__main__":
-    logging.basicConfig(level=logging.INFO)
-
-    hyperparameters = dict(
-        epochs=5,
-        # A NVIDIA Quadro 4000 8GB can handle a batch size of 2
-        # but it seems to be slower (30min per epoch vs 26)
-        batch_size=1,
-        percent_of_data_used_for_validation=10,
-        # how to scale the images by before passing them to the model
-        # kind of a hyperparam?
-        scale=0.5,
-        learning_rate=1e-3,
+def get_args():
+    parser = argparse.ArgumentParser(
+        description="Train the UNet on images and target masks"
     )
+    parser.add_argument(
+        "--load",
+        "-L",
+        type=str,
+        default=False,
+        help="Load model from a checkpoint directory",
+    )
+    return parser.parse_args()
+
+
+if __name__ == "__main__":
+    args = get_args()
+    logging.basicConfig(level=logging.INFO)
+    run_id = checkpoint = None
+    if args.load:
+        run_id = args.load
+        path = f"./run-checkpoints/{run_id}.checkpoint"
+        p = Path(path)
+        if not p.is_file():
+            raise FileNotFoundError(f"Could not find file at: {path}")
+        checkpoint = torch.load(p)
+    else:
+        logging.info("Starting new run ...")
+        run_id = wandb.util.generate_id()
+
+
+    hyperparameters = (
+        dict(
+            epochs=5,
+            # A NVIDIA Quadro 4000 8GB can handle a batch size of 2
+            # but it seems to be slower (30min per epoch vs 26)
+            batch_size=1,
+            percent_of_data_used_for_validation=10,
+            # how to scale the images by before passing them to the model
+            # kind of a hyperparam?
+            scale=0.5,
+            # https://stackoverflow.com/questions/42966393/is-it-good-learning-rate-for-adam-method
+            # Folk wisdom for adam's learning rate
+            # TODO: do hyper-parameter tuning or something?
+            learning_rate=3e-4,
+        )
+        if not checkpoint
+        else checkpoint["hyperparameters"]
+    )
+
     # as long as the process exits unsuccesfully, wandb will automatically resume the run
-    with wandb.init(project="UNet", resume=True, config=hyperparameters):
+    with wandb.init(project="UNet", resume="must" if checkpoint else "never", config=hyperparameters):
         config = wandb.config
-        train_model(**config)
+        try:
+            train_model(**config, checkpoint=checkpoint)
+        except KeyboardInterrupt:
+            torch.save({
+                'batches_seen': BATCHES_SEEN,
+                'epoch': EPOCH,
+                'model_state_dict': MODEL.state_dict(),
+                'optimizer_state_dict': OPTIMIZER.state_dict(),
+                'hyperparameters': hyperparameters
+            }, f"./run-checkpoints/{run_id}.checkpoint")
+            logging.info("Saved interrupt")
+            raise
