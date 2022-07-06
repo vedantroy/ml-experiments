@@ -10,12 +10,15 @@ import random
 from tqdm import tqdm
 import wandb
 
+from evaluate import evaluate
 from model import UNet
 from data import BasicDataset
 from loss import dice_loss
+from utils import convert_mask_to_ground_truth
 
 # These need to be global so we can save them
 BATCHES_SEEN = EPOCH = MODEL = OPTIMIZER = None
+
 
 def train_model(
     epochs,
@@ -28,7 +31,7 @@ def train_model(
     global BATCHES_SEEN, EPOCH, MODEL, OPTIMIZER
 
     dataset = BasicDataset(
-        images_dir="./data/imgs", masks_dir="./data/masks", scale=0.5
+        images_dir="./data/imgs", masks_dir="./data/masks", scale=scale
     )
     logging.info(f"{len(dataset)} training images")
 
@@ -68,7 +71,12 @@ def train_model(
     )
     # shuffle=True causes the data to be reshuffled at every epoch
     train_loader = DataLoader(train_set, shuffle=True, **loader_args)
-    val_loader = DataLoader(val_set, shuffle=False, **loader_args)
+    # `drop_last=True` ignores the last batch (if the number of samples is not divisible by the batch size)
+    # i.e., it drops the "ragged" data
+    val_loader = DataLoader(val_set, shuffle=False, drop_last=True, **loader_args)
+    assert (
+        len(val_loader) > 0
+    ), "validation loader didn't have enough data for a single full batch"
 
     # adamW > adam -- https://www.fast.ai/2018/07/02/adam-weight-decay/#implementing-adamw
     OPTIMIZER = optim.AdamW(MODEL.parameters(), lr=learning_rate)
@@ -85,7 +93,7 @@ def train_model(
 
     criterion = nn.CrossEntropyLoss()
 
-    # batches_per_epoch = len(train_loader)
+    batches_per_epoch = len(train_loader)
     # If your training gets much slower, increase `log_freq`
     wandb.watch(MODEL, criterion=None, log="all", log_freq=10)
     BATCHES_SEEN = 0 if not checkpoint else checkpoint["batches_seen"]
@@ -95,9 +103,12 @@ def train_model(
     if checkpoint:
         batches_to_skip = BATCHES_SEEN - (start_epoch * batches_per_epoch)
 
+    MODEL.train()
     for epoch in range(start_epoch, epochs):
         EPOCH = epoch
-        for batch in tqdm(train_loader, desc=f"epoch {epoch}/{epochs}"):
+        for batch_idx, batch in tqdm(
+            enumerate(train_loader), desc=f"epoch {epoch}/{epochs}"
+        ):
             if batches_to_skip > 0:
                 # print(f"Skipping {batches_to_skip} more batches")
                 batches_to_skip -= 1
@@ -114,7 +125,7 @@ def train_model(
             # `set_to_none=True` boosts performance
             OPTIMIZER.zero_grad(set_to_none=True)
             masks_pred = MODEL(imgs)
- 
+
             _, out_classes, predW, predH = masks_pred.shape
             assert predW == W and predH == H and out_classes == MODEL.n_classes
 
@@ -129,7 +140,7 @@ def train_model(
             # 0.1 0.1 0.8 0.2 0.3
 
             probs = F.softmax(masks_pred, dim=1).float()
-            ground_truth = F.one_hot(masks, MODEL.n_classes).permute(0, 3, 1, 2).float()
+            ground_truth = convert_mask_to_ground_truth(masks, MODEL.n_classes)
 
             # this is only true if N_CLASSES=2
             x, y = random.randrange(0, W), random.randrange(0, H)
@@ -152,7 +163,7 @@ def train_model(
                 "learning_rate": OPTIMIZER.param_groups[0]["lr"],
             }
 
-            if BATCHES_SEEN % 50 == 1:
+            if BATCHES_SEEN % 100 == 1:
                 wandb.log(
                     {
                         **to_log,
@@ -160,9 +171,11 @@ def train_model(
                         "masks": {
                             "true": wandb.Image(masks[0].float().cpu()),
                             "pred": wandb.Image(
+                                # The original repository has a softmax, but
+                                # that should be unneeded since softmax never changes argmax
                                 # TODO: Check if we can do softmax(masks_pred[0], dim=0)
-                                torch.softmax(masks_pred, dim=1)
-                                .argmax(dim=1)[0]
+                                # torch.softmax(masks_pred, dim=1)
+                                masks_pred.argmax(dim=1)[0]
                                 .float()
                                 .cpu()
                             ),
@@ -171,6 +184,15 @@ def train_model(
                 )
             else:
                 wandb.log(to_log)
+
+            if (batch_idx + 1) % (batches_per_epoch // 2) == 0:
+                val_loss_dice, val_loss_cross_entropy, val_loss_total, = evaluate(MODEL, val_loader, device)
+                wandb.log({
+                    "step": BATCHES_SEEN,
+                    "validation_loss_dice": val_loss_dice,
+                    "validation_loss_cross_entropy": val_loss_cross_entropy,
+                    "validation_loss_combined": val_loss_total,
+                })
 
 
 # https://github.com/hyunwoongko/transformer/blob/master/train.py
@@ -210,7 +232,6 @@ if __name__ == "__main__":
         run_id = wandb.util.generate_id()
         logging.info(f"Starting run with id: {run_id}")
 
-
     hyperparameters = (
         dict(
             epochs=5,
@@ -232,22 +253,31 @@ if __name__ == "__main__":
 
     throw = None
     # as long as the process exits unsuccesfully, wandb will automatically resume the run
-    with wandb.init(project="UNet", id=run_id, resume="must" if checkpoint else "never", config=hyperparameters):
+    with wandb.init(
+        project="UNet",
+        id=run_id,
+        resume="must" if checkpoint else "never",
+        config=hyperparameters,
+    ):
         config = wandb.config
         try:
             train_model(**config, checkpoint=checkpoint)
         except KeyboardInterrupt as e:
-            path = Path(f"./run-checkpoints")
-            path.mkdir(parents=True, exist_ok=True)
-
-            torch.save({
-                'batches_seen': BATCHES_SEEN,
-                'epoch': EPOCH,
-                'model_state_dict': MODEL.state_dict(),
-                'optimizer_state_dict': OPTIMIZER.state_dict(),
-                'hyperparameters': hyperparameters
-            }, path / f"{run_id}.checkpoint")
-            logging.info("Saved interrupt")
             throw = e
+
+    path = Path(f"./run-checkpoints")
+    path.mkdir(parents=True, exist_ok=True)
+    torch.save(
+        {
+            "batches_seen": BATCHES_SEEN,
+            "epoch": EPOCH,
+            "model_state_dict": MODEL.state_dict(),
+            "optimizer_state_dict": OPTIMIZER.state_dict(),
+            "hyperparameters": hyperparameters,
+        },
+        path / f"{run_id}.checkpoint",
+    )
+    logging.info("Saved interrupt")
+
     if throw:
         raise throw
