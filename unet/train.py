@@ -121,6 +121,7 @@ def train_model(
                 "loss_dice": loss_dice,
                 "step": batches_seen,
                 "epoch": epoch,
+                "learning_rate": optimizer.param_groups[0]['lr']
             }
 
             if batches_seen % 50 == 1:
