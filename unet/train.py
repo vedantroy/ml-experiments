@@ -91,13 +91,15 @@ def train_model(
     BATCHES_SEEN = 0 if not checkpoint else checkpoint["batches_seen"]
     start_epoch = 0 if not checkpoint else checkpoint["epoch"]
     batches_per_epoch = len(train_loader)
-    batches_to_skip = 0 if not checkpoint else BATCHES_SEEN % (epoch * batches_per_epoch)
+    batches_to_skip = 0
+    if checkpoint:
+        batches_to_skip = BATCHES_SEEN - (start_epoch * batches_per_epoch)
 
     for epoch in range(start_epoch, epochs):
         EPOCH = epoch
         for batch in tqdm(train_loader, desc=f"epoch {epoch}/{epochs}"):
             if batches_to_skip > 0:
-                print(f"Skipping {batches_to_skip} more batches")
+                # print(f"Skipping {batches_to_skip} more batches")
                 batches_to_skip -= 1
                 continue
 
@@ -205,8 +207,8 @@ if __name__ == "__main__":
             raise FileNotFoundError(f"Could not find file at: {path}")
         checkpoint = torch.load(p)
     else:
-        logging.info("Starting new run ...")
         run_id = wandb.util.generate_id()
+        logging.info(f"Starting run with id: {run_id}")
 
 
     hyperparameters = (
@@ -228,18 +230,24 @@ if __name__ == "__main__":
         else checkpoint["hyperparameters"]
     )
 
+    throw = None
     # as long as the process exits unsuccesfully, wandb will automatically resume the run
-    with wandb.init(project="UNet", resume="must" if checkpoint else "never", config=hyperparameters):
+    with wandb.init(project="UNet", id=run_id, resume="must" if checkpoint else "never", config=hyperparameters):
         config = wandb.config
         try:
             train_model(**config, checkpoint=checkpoint)
-        except KeyboardInterrupt:
+        except KeyboardInterrupt as e:
+            path = Path(f"./run-checkpoints")
+            path.mkdir(parents=True, exist_ok=True)
+
             torch.save({
                 'batches_seen': BATCHES_SEEN,
                 'epoch': EPOCH,
                 'model_state_dict': MODEL.state_dict(),
                 'optimizer_state_dict': OPTIMIZER.state_dict(),
                 'hyperparameters': hyperparameters
-            }, f"./run-checkpoints/{run_id}.checkpoint")
+            }, path / f"{run_id}.checkpoint")
             logging.info("Saved interrupt")
-            raise
+            throw = e
+    if throw:
+        raise throw
