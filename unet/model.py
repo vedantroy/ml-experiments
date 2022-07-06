@@ -4,23 +4,38 @@ from torch import nn
 
 
 class DoubleConv(nn.Module):
-    def __init__(self, c_in: int, c_mid: int, c_out: int):
+    def __init__(self, c_in: int, c_mid: int, c_out: int, group_norm):
         super().__init__()
         self.c_in = c_in
         self.c_out = c_out
         k = 3
         # We add padding b/c we want to preserve the input dimensions
         # Why? This makes calculating the loss easier
-        c1 = nn.Conv2d(c_in, c_mid, kernel_size=k, padding=1, bias=False)
+
+        using_group_norm = group_norm != None
+
+        # We don't have a bias, because groupnorm includes its own bias
+        c1 = nn.Conv2d(c_in, c_mid, kernel_size=k, padding=1, bias=not using_group_norm)
         assert c1.weight.shape == (c_mid, c_in, k, k)
-        c2 = nn.Conv2d(c_mid, c_out, kernel_size=k, padding=1, bias=False)
+        c2 = nn.Conv2d(c_mid, c_out, kernel_size=k, padding=1, bias=not using_group_norm)
         assert c2.weight.shape == (c_out, c_mid, k, k)
-        self.conv = nn.Sequential(
-            c1,
-            nn.ReLU(inplace=True),
-            c2,
-            nn.ReLU(inplace=True),
-        )
+
+        if not group_norm:
+            self.conv = nn.Sequential(
+                c1,
+                nn.GroupNorm(group_norm[0], c_mid),
+                nn.ReLU(inplace=True),
+                c2,
+                nn.GroupNorm(group_norm[1], c_out),
+                nn.ReLU(inplace=True),
+            )
+        else:
+            self.conv = nn.Sequential(
+                c1,
+                nn.ReLU(inplace=True),
+                c2,
+                nn.ReLU(inplace=True),
+            )
 
     def forward(self, x):
         batch_size, in_channels, W, H = x.shape
@@ -35,12 +50,12 @@ class DoubleConv(nn.Module):
 
 class Down(nn.Module):
     def __init__(
-        self, in_channels: int, mid_channels: int, out_channels: int, level: int
+        self, in_channels: int, mid_channels: int, out_channels: int, level: int, group_norm
     ):
         super().__init__()
         # For debugging
         self.level = level
-        double_conv = DoubleConv(in_channels, mid_channels, out_channels)
+        double_conv = DoubleConv(in_channels, mid_channels, out_channels, group_norm)
         # We start w/ the pool b/c we need the output of the double_conv
         # for the skip connections
         pool = nn.MaxPool2d(2)
@@ -51,7 +66,7 @@ class Down(nn.Module):
 
 
 class Up(nn.Module):
-    def __init__(self, c_in: int, c_mid: int, c_out: int, level: int):
+    def __init__(self, c_in: int, c_mid: int, c_out: int, level: int, group_norm):
         super().__init__()
         # For debugging
         self.level = level
@@ -66,7 +81,7 @@ class Up(nn.Module):
         # The `stride=2` is what causes the up-scaling of the image
         self.up = nn.ConvTranspose2d(c_in, after_up_conv, kernel_size=2, stride=2)
         assert self.up.weight.shape == (c_in, after_up_conv, 2, 2)
-        self.conv = DoubleConv(c_in, c_mid, c_out)
+        self.conv = DoubleConv(c_in, c_mid, c_out, group_norm)
 
     def forward(self, x, from_skip_connection):
         _, _, before_upscale_W, before_upscale_H = x.shape
@@ -116,15 +131,17 @@ class UNet(nn.Module):
     def __init__(self, n_in_channels, n_classes):
         super().__init__()
         self.n_classes = n_classes
-        self.in_conv = DoubleConv(n_in_channels, 64, 64)
-        self.down1 = Down(64, 128, 128, 1)
-        self.down2 = Down(128, 256, 256, 2)
-        self.down3 = Down(256, 512, 512, 3)
-        self.down4 = Down(512, 1024, 1024, 4)
-        self.up1 = Up(1024, 512, 512, 4)
-        self.up2 = Up(512, 256, 256, 3)
-        self.up3 = Up(256, 128, 128, 2)
-        self.up4 = Up(128, 64, 64, 1)
+        # try to get around 24 channels per group
+        # this is a random hyper parameter that we can tune
+        self.in_conv = DoubleConv(n_in_channels, 64, 64, group_norm=(4, 4))
+        self.down1 = Down(64, 128, 128, 1, group_norm=(4, 4))
+        self.down2 = Down(128, 256, 256, 2, group_norm=(8, 8))
+        self.down3 = Down(256, 512, 512, 3, group_norm=(16, 16))
+        self.down4 = Down(512, 1024, 1024, 4, group_norm=(32, 32))
+        self.up1 = Up(1024, 512, 512, 4, group_norm=(16, 16))
+        self.up2 = Up(512, 256, 256, 3, group_norm=(8, 8))
+        self.up3 = Up(256, 128, 128, 2, group_norm=(4,4))
+        self.up4 = Up(128, 64, 64, 1, group_norm=(4, 4))
         self.classifier = nn.Conv2d(64, n_classes, kernel_size=1)
         assert self.classifier.weight.shape == (n_classes, 64, 1, 1)
 
