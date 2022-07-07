@@ -261,15 +261,19 @@ if __name__ == "__main__":
         try:
             trainer.fit(model)
         except EarlyStop:
+            print("Trainer was stopped by signal handler")
             pass
 
+
+    print("Saving PL checkpoint")
     lightning_checkpoint = p / "lightning.checkpoint"
     trainer.save_checkpoint(lightning_checkpoint)
     torch.save(model.model.state_dict(), p / "model.pt")
 
     if os.environ.get("WANDB_MODE") != "disabled":
+        print("Saving WANDB checkpoint")
         torch.save(config, p / "wandb.checkpoint")
 
     if model.early_exit:
-        print("Received SIGINT")
+        print("Received SIGINT, exiting ...")
         sys.exit(1)
