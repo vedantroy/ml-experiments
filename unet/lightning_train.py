@@ -179,6 +179,7 @@ class LightningModel(pl.LightningModule):
         if self.early_exit:
             return
 
+        print("Uploading final files")
         path = Path(f"./runs/{self.run_id}")
         path.mkdir(parents=True, exist_ok=True)
 
@@ -230,7 +231,7 @@ if __name__ == "__main__":
             percent_of_data_used_for_validation=10,
             batch_size=1,
             learning_rate=3e-4,
-            amp=False,
+            amp=True,
             epochs=5,
         )
 
@@ -242,6 +243,9 @@ if __name__ == "__main__":
         devices=1,
         max_epochs=config["epochs"],
         enable_checkpointing=False,
+        precision=16 if config['amp'] else 32,
+        # check validation set twice per epoch
+        val_check_interval=0.5,
     )
     model = LightningModel(**config, run_id=run_id)
 
