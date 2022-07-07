@@ -155,8 +155,6 @@ class LightningModel(pl.LightningModule):
                 "step": trainer.global_step,
             }
         )
-        print("VALIDATION OUTPUTS")
-        print(outputs)
 
     def train_dataloader(self):
         return DataLoader(self.train_set, shuffle=True, **self.loader_args)
