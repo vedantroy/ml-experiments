@@ -18,6 +18,7 @@ from data import BasicDataset
 from loss import dice_loss
 from utils import convert_mask_to_ground_truth
 
+
 def get_losses(batch, model, n_classes):
     imgs, masks = batch["image"], batch["mask"]
 
@@ -95,7 +96,7 @@ class LightningModel(pl.LightningModule):
                 "loss_dice": dice,
                 "loss_combined": combined,
                 "step": trainer.global_step,
-                "epoch": trainer.current_epoch
+                "epoch": trainer.current_epoch,
             }
         )
         return combined
@@ -111,13 +112,37 @@ class LightningModel(pl.LightningModule):
             # For some reason PL calls validation twice before anything has really happened
             return
 
+        first_batch = batch_idx == 0
+        return (
+            cross_entropy,
+            dice,
+            combined,
+            (imgs, masks, mask_preds) if first_batch else None,
+        )
+
+    def validation_epoch_end(self, outputs):
+        cross_entropy = dice = combined = []
+        batch_sample = None
+        for cur_cross_entropy, cur_dice, cur_combined, cur_batch_sample in outputs:
+            if cur_batch_sample:
+                batch_sample = cur_batch_sample
+            cross_entropy.append(cur_cross_entropy)
+            dice.append(cur_dice)
+            combined.append(cur_combined)
+
+        cross_entropy = torch.stack(cross_entropy).mean()
+        dice = torch.stack(dice).mean()
+        combined = torch.stack(combined).mean()
+
+        (imgs, masks, mask_preds) = batch_sample
+
         wandb.log(
             {
                 "validation_loss_cross_entropy": cross_entropy,
                 "validation_loss_dice": dice,
                 "validation_loss_combined": combined,
                 "step": trainer.global_step,
-                "epoch": trainer.current_epoch
+                "epoch": trainer.current_epoch,
             }
         )
         wandb.log(
@@ -130,6 +155,8 @@ class LightningModel(pl.LightningModule):
                 "step": trainer.global_step,
             }
         )
+        print("VALIDATION OUTPUTS")
+        print(outputs)
 
     def train_dataloader(self):
         return DataLoader(self.train_set, shuffle=True, **self.loader_args)
@@ -210,6 +237,7 @@ if __name__ == "__main__":
         devices=1,
         max_epochs=config["epochs"],
         enable_checkpointing=False,
+        fast_dev_run=2,
     )
     model = LightningModel(**config, run_id=run_id)
 
