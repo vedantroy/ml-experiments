@@ -2,18 +2,20 @@ import torch
 import torch.nn as nn
 from helpers import assert_shape
 
-from params import params
-
 # NOTATION:
 # W_k = W (k as subscript)
 # Wk = W (k as superscript)
 
 
 class MultiHeadAttention(nn.Module):
-    def __init__(self, d_model: int, num_heads: int, mask: torch.Tensor):
+    def __init__(self, d_model: int, num_heads: int, mask, params):
         super().__init__()
 
-        self.mask = mask
+        self.params = params
+        self.d_model = d_model
+        # This is a buffer we need, but we don't want it to be optimized
+        # by the optimizer
+        self.register_buffer("mask", mask)
         d_k = d_model / num_heads
         assert d_k.is_integer()
         self.d_k = int(d_k)
@@ -36,9 +38,9 @@ class MultiHeadAttention(nn.Module):
         orig_shape = x.shape
         batch_size, sequence_len, d_model = x.shape
 
-        assert params["batch_size"] == batch_size
-        assert params["sequence_len"] == sequence_len
-        assert params["d_model"] == d_model
+        assert self.params["batch_size"] == batch_size
+        assert self.params["sequence_len"] == sequence_len
+        assert self.d_model == d_model
 
         Q, K, V = self.Wq(x), self.Wk(x), self.Wv(x)
 
@@ -98,12 +100,18 @@ class MultiHeadAttention(nn.Module):
 
 class DecoderLayer(nn.Module):
     def __init__(
-        self, num_heads: int, d_model: int, widening_factor: int, mask: torch.Tensor
+        self,
+        num_heads: int,
+        d_model: int,
+        widening_factor: int,
+        mask: torch.Tensor,
+        params,
     ):
         super().__init__()
+        self.params = params
         self.d_ff = widening_factor * d_model
 
-        self.attention = MultiHeadAttention(d_model, num_heads, mask)
+        self.attention = MultiHeadAttention(d_model, num_heads, mask, params)
         # TODO: How was this epsilon chosen?
         # TODO: We need to layer normalization w/o learnable parameters
         self.norm1 = nn.LayerNorm(d_model, eps=1e-6, elementwise_affine=False)
@@ -117,9 +125,9 @@ class DecoderLayer(nn.Module):
 
     def forward(self, x):
         batch_size, sequence_len, d_model = (
-            params["batch_size"],
-            params["sequence_len"],
-            params["d_model"],
+            self.params["batch_size"],
+            self.params["sequence_len"],
+            self.params["d_model"],
         )
 
         original_x = x
@@ -142,6 +150,28 @@ class DecoderLayer(nn.Module):
         return x
 
 
+# class PositionalEncoding(nn.Module):
+#
+#    def __init__(self, d_model: int, dropout: float = 0.1, max_len: int = 5000):
+#        super().__init__()
+#        self.dropout = nn.Dropout(p=dropout)
+#
+#        position = torch.arange(max_len).unsqueeze(1)
+#        div_term = torch.exp(torch.arange(0, d_model, 2) * (-math.log(10000.0) / d_model))
+#        pe = torch.zeros(max_len, 1, d_model)
+#        pe[:, 0, 0::2] = torch.sin(position * div_term)
+#        pe[:, 0, 1::2] = torch.cos(position * div_term)
+#        self.register_buffer('pe', pe)
+#
+#    def forward(self, x: Tensor) -> Tensor:
+#        """
+#        Args:
+#            x: Tensor, shape [seq_len, batch_size, embedding_dim]
+#        """
+#        x = x + self.pe[:x.size(0)]
+#        return self.dropout(x)
+
+
 class Transformer(nn.Module):
     def __init__(
         self,
@@ -152,21 +182,29 @@ class Transformer(nn.Module):
         sequence_len: int,
         layers: int,
         mask: torch.Tensor,
+        params,
     ):
         super().__init__()
 
+        self.params = params
         self.vocab_embedding = nn.Embedding(
             num_embeddings=vocab_size, embedding_dim=d_model
         )
-        self.positional_embedding = torch.zeros((sequence_len, d_model))
-        # Our `initialize_weights` function doesn't cover this b/c it's a module from torch.nn (I think?)
+        # self.positional_embedding = torch.zeros((sequence_len, d_model))
+        # self.register_buffer('positional_embedding', self.positional_embedding)
+
+        self.positional_embedding = nn.parameter.Parameter(
+            torch.zeros((sequence_len, d_model)), requires_grad=True
+        )
+
+        # Our `initialize_weights` function doesn't cover this for some reason
         nn.init.kaiming_uniform_(self.positional_embedding)
 
         assert self.vocab_embedding.weight.shape == (vocab_size, d_model)
         assert self.positional_embedding.shape == (sequence_len, d_model)
 
         self.decoder_layers = nn.ModuleList(
-            DecoderLayer(num_heads, d_model, widening_factor, mask)
+            DecoderLayer(num_heads, d_model, widening_factor, mask, params)
             for _ in range(layers)
         )
 
@@ -184,11 +222,11 @@ class Transformer(nn.Module):
     def forward(self, x):
         batch_size, sequence_len = x.shape
 
-        assert params["batch_size"] == batch_size
-        assert params["sequence_len"] == sequence_len
+        assert self.params["batch_size"] == batch_size
+        assert self.params["sequence_len"] == sequence_len
 
         embeddings = self.vocab_embedding(x)
-        assert embeddings.shape == (batch_size, sequence_len, params["d_model"])
+        assert embeddings.shape == (batch_size, sequence_len, self.params["d_model"])
         embeddings_with_positions = embeddings + self.positional_embedding
 
         decoder_output = embeddings_with_positions
