@@ -19,6 +19,10 @@ from loss import dice_loss
 from utils import convert_mask_to_ground_truth
 
 
+class EarlyStop(RuntimeError):
+    pass
+
+
 def get_losses(batch, model, n_classes):
     imgs, masks = batch["image"], batch["mask"]
 
@@ -85,7 +89,7 @@ class LightningModel(pl.LightningModule):
 
     def on_train_batch_start(self, batch, batch_idx: int, unused: int = 0):
         if self.early_exit:
-            return -1
+            raise EarlyStop()
 
     def training_step(self, batch, batch_idx):
         self.training_started = True
@@ -121,6 +125,9 @@ class LightningModel(pl.LightningModule):
         )
 
     def validation_epoch_end(self, outputs):
+        if len(outputs) == 0:
+            return
+
         cross_entropy = dice = combined = []
         batch_sample = None
         for cur_cross_entropy, cur_dice, cur_combined, cur_batch_sample in outputs:
@@ -169,6 +176,7 @@ class LightningModel(pl.LightningModule):
         return loader
 
     def on_train_end(self):
+        # This should never happen??
         if self.early_exit:
             return
 
@@ -235,7 +243,6 @@ if __name__ == "__main__":
         devices=1,
         max_epochs=config["epochs"],
         enable_checkpointing=False,
-        fast_dev_run=2,
     )
     model = LightningModel(**config, run_id=run_id)
 
@@ -251,7 +258,10 @@ if __name__ == "__main__":
             model.early_exit = True
 
         signal.signal(signal.SIGINT, signal_handler)
-        trainer.fit(model)
+        try:
+            trainer.fit(model)
+        except EarlyStop:
+            pass
 
     lightning_checkpoint = p / "lightning.checkpoint"
     trainer.save_checkpoint(lightning_checkpoint)
