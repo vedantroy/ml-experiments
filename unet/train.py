@@ -284,28 +284,26 @@ if __name__ == "__main__":
             train_model(**config, checkpoint=checkpoint)
         except KeyboardInterrupt as e:
             throw = e
-
-    path = Path(f"./run-checkpoints")
-    path.mkdir(parents=True, exist_ok=True)
-    torch.save(
-        {
-            "batches_seen": BATCHES_SEEN,
-            "epoch": EPOCH,
-            "model_state_dict": MODEL.state_dict(),
-            "optimizer_state_dict": OPTIMIZER.state_dict(),
-            "grad_scaler_state_dict": GRAD_SCALER.state_dict(),
-            "hyperparameters": hyperparameters,
-        },
-        path / f"{run_id}.checkpoint",
-    )
-    logging.info("Saved interrupt")
-
-    if throw:
-        raise throw
-    else:
-        model_path = path / f"{run_id}.pt"
-        model_onnx_path = path / f"{run_id}.onnx"
-        torch.save(MODEL.state_dict(), model_path)
-        torch.onnx.export(MODEL, SAMPLE_ARG, model_onnx_path)
-        wandb.save(model_path)
-        wandb.save(model_onnx_path)
+        path = Path(f"./run-checkpoints")
+        path.mkdir(parents=True, exist_ok=True)
+        torch.save(
+            {
+                "batches_seen": BATCHES_SEEN,
+                "epoch": EPOCH,
+                "model_state_dict": MODEL.state_dict(),
+                "optimizer_state_dict": OPTIMIZER.state_dict(),
+                "grad_scaler_state_dict": GRAD_SCALER.state_dict(),
+                "hyperparameters": hyperparameters,
+            },
+            path / f"{run_id}.checkpoint",
+        )
+        logging.info("Saved interrupt")
+        if throw:
+            raise throw
+        else:
+            model_path = path / f"{run_id}.pt"
+            model_onnx_path = path / f"{run_id}.onnx"
+            torch.save(MODEL.state_dict(), model_path)
+            torch.onnx.export(MODEL, SAMPLE_ARG, model_onnx_path)
+            wandb.save(model_path)
+            wandb.save(model_onnx_path)
