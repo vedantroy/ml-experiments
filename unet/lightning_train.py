@@ -135,17 +135,7 @@ class LightningModel(pl.LightningModule):
         if len(outputs) == 0:
             return
 
-        # cross_entropy = dice = combined = []
-        # batch_sample = None
-        # for cur_cross_entropy, cur_dice, cur_combined, cur_batch_sample in outputs:
-        #    if cur_batch_sample:
-        #        batch_sample = cur_batch_sample
-        #    cross_entropy.append(cur_cross_entropy)
-        #    dice.append(cur_dice)
-        #    combined.append(cur_combined)
-
         cross_entropy, dice, combined, batch_samples = stack(outputs)
-
         cross_entropy = torch.stack(cross_entropy).mean()
         dice = torch.stack(dice).mean()
         combined = torch.stack(combined).mean()
