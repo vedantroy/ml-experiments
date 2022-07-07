@@ -247,7 +247,6 @@ if __name__ == "__main__":
         # check validation set twice per epoch
         val_check_interval=0.5,
     )
-    model = LightningModel(**config, run_id=run_id)
 
     with wandb.init(
         project="UNet",
