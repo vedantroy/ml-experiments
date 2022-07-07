@@ -71,10 +71,13 @@ class LightningTemplate(pl.LightningModule):
     def forward(self, x):
         return self.model(x)
 
+    # Override this method & call super
     def training_step(self, batch, batch_idx):
         self.training_started = True
         if batch_idx > 0:
-            assert self.sample_arg, "Missing sample arg even though at least 1 training step finished"
+            assert (
+                self.sample_arg
+            ), "Missing sample arg even though at least 1 training step finished"
 
     def on_train_batch_start(self, batch, batch_idx: int, unused: int = 0):
         if self.early_exit:
@@ -119,6 +122,7 @@ def check_trainer_args(trainer_args):
     assert "accelerator" in trainer_args
     assert "devices" in trainer_args
 
+
 def split_dataset(dataset, val_percent):
     n_val = int(len(dataset) * (val_percent / 100))
     n_train = len(dataset) - int(n_val)
@@ -132,7 +136,8 @@ def split_dataset(dataset, val_percent):
     )
     return train_set, val_set
 
-def run(description, project_name, ModelClass, default_config, trainer_args, dataset):
+
+def run(description, project_name, ModelClass, default_config, trainer_args, get_dataset):
     check_config(default_config)
     check_trainer_args(trainer_args)
     args = get_args(description=description)
@@ -151,22 +156,27 @@ def run(description, project_name, ModelClass, default_config, trainer_args, dat
             )
         config = torch.load(wandb_checkpoint)
         check_config(config)
+        dataset = get_dataset(config)
         train_set, val_set = split_dataset(dataset, config["val_percent"])
         model = ModelClass.load_from_checkpoint(
-            lighting_checkpoint, **config, run_id=run_id, train_ds=train_set, val_ds=val_set
+            lighting_checkpoint,
+            **config,
+            run_id=run_id,
+            train_ds=train_set,
+            val_ds=val_set,
         )
     else:
         run_id = wandb.util.generate_id()
         print(f"Starting new run with id: {run_id}")
         config = default_config
+        dataset = get_dataset(config)
         train_set, val_set = split_dataset(dataset, config["val_percent"])
         model = ModelClass(**config, run_id=run_id, train_ds=train_set, val_ds=val_set)
-
 
     p = Path(f"./runs/{run_id}")
     p.mkdir(parents=True, exist_ok=True)
 
-    trainer = pl.Trainer(
+    trainer_args = dict(
         max_epochs=config["epochs"],
         enable_checkpointing=False,
         precision=16 if config["amp"] else 32,
@@ -174,6 +184,8 @@ def run(description, project_name, ModelClass, default_config, trainer_args, dat
         val_check_interval=0.5,
         **trainer_args,
     )
+    print(f"Running trainer with args: {trainer_args}")
+    trainer = pl.Trainer(**trainer_args)
 
     with wandb.init(
         project=project_name,
