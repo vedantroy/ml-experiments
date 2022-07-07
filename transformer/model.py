@@ -59,7 +59,7 @@ class MultiHeadAttention(nn.Module):
         # For high-dimensional tensors, the matrix multiplication can only be
         # operated on the last two dimensions, which requires the previous dimensions to be equal.
         query_attention_to_keys = Q @ K_T
-        query_attention_to_keys *= (1 / (self.d_k ** 0.5))
+        query_attention_to_keys *= 1 / (self.d_k**0.5)
 
         assert query_attention_to_keys.shape == (
             batch_size,

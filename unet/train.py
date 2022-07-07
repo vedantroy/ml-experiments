@@ -1,6 +1,7 @@
 from pathlib import Path
 import argparse
 import logging
+
 # import contextlib
 import random
 
@@ -20,6 +21,7 @@ from utils import convert_mask_to_ground_truth
 
 # These need to be global so we can save them
 BATCHES_SEEN = EPOCH = MODEL = OPTIMIZER = GRAD_SCALER = SAMPLE_ARG = None
+
 
 def train_model(
     epochs,
@@ -112,7 +114,9 @@ def train_model(
     MODEL.train()
     for epoch in range(start_epoch, epochs):
         EPOCH = epoch
-        for batch_idx, batch in enumerate(tqdm(train_loader, desc=f"epoch {epoch}/{epochs}")):
+        for batch_idx, batch in enumerate(
+            tqdm(train_loader, desc=f"epoch {epoch}/{epochs}")
+        ):
             if batches_to_skip > 0:
                 # print(f"Skipping {batches_to_skip} more batches")
                 batches_to_skip -= 1
@@ -195,13 +199,19 @@ def train_model(
                 wandb.log(to_log)
 
             if (batch_idx + 1) % (batches_per_epoch // 2) == 0:
-                val_loss_dice, val_loss_cross_entropy, val_loss_total, = evaluate(MODEL, val_loader, device)
-                wandb.log({
-                    "step": BATCHES_SEEN,
-                    "validation_loss_dice": val_loss_dice,
-                    "validation_loss_cross_entropy": val_loss_cross_entropy,
-                    "validation_loss_combined": val_loss_total,
-                })
+                (
+                    val_loss_dice,
+                    val_loss_cross_entropy,
+                    val_loss_total,
+                ) = evaluate(MODEL, val_loader, device)
+                wandb.log(
+                    {
+                        "step": BATCHES_SEEN,
+                        "validation_loss_dice": val_loss_dice,
+                        "validation_loss_cross_entropy": val_loss_cross_entropy,
+                        "validation_loss_combined": val_loss_total,
+                    }
+                )
 
 
 # https://github.com/hyunwoongko/transformer/blob/master/train.py
@@ -299,5 +309,3 @@ if __name__ == "__main__":
         torch.onnx.export(MODEL, SAMPLE_ARG, model_onnx_path)
         wandb.save(model_path)
         wandb.save(model_onnx_path)
-
-

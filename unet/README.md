@@ -1,5 +1,10 @@
+# Carvana UNet
+
 This is a UNet I trained on the Carvana dataset
 Code is heavily based off of: https://github.com/milesial/Pytorch-UNet/
 
-Code is super messy, but it was good to understand what a vanilla training loop likes
-For some reason AMP (automatic mixed precision) makes training the model slower??
+The code is super messy, but it works pretty well.
+For some reason, using AMP makes the model slower?
+
+lightning_train.py uses Pytorch Lightning instead, but I gave up finishing
+the implementation because I didn't see the benefit of using Pytorch Lightning

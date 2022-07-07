@@ -17,7 +17,9 @@ class DoubleConv(nn.Module):
         # We don't have a bias, because groupnorm includes its own bias
         c1 = nn.Conv2d(c_in, c_mid, kernel_size=k, padding=1, bias=not using_group_norm)
         assert c1.weight.shape == (c_mid, c_in, k, k)
-        c2 = nn.Conv2d(c_mid, c_out, kernel_size=k, padding=1, bias=not using_group_norm)
+        c2 = nn.Conv2d(
+            c_mid, c_out, kernel_size=k, padding=1, bias=not using_group_norm
+        )
         assert c2.weight.shape == (c_out, c_mid, k, k)
 
         if not group_norm:
@@ -50,7 +52,12 @@ class DoubleConv(nn.Module):
 
 class Down(nn.Module):
     def __init__(
-        self, in_channels: int, mid_channels: int, out_channels: int, level: int, group_norm
+        self,
+        in_channels: int,
+        mid_channels: int,
+        out_channels: int,
+        level: int,
+        group_norm,
     ):
         super().__init__()
         # For debugging
@@ -140,7 +147,7 @@ class UNet(nn.Module):
         self.down4 = Down(512, 1024, 1024, 4, group_norm=(32, 32))
         self.up1 = Up(1024, 512, 512, 4, group_norm=(16, 16))
         self.up2 = Up(512, 256, 256, 3, group_norm=(8, 8))
-        self.up3 = Up(256, 128, 128, 2, group_norm=(4,4))
+        self.up3 = Up(256, 128, 128, 2, group_norm=(4, 4))
         self.up4 = Up(128, 64, 64, 1, group_norm=(4, 4))
         self.classifier = nn.Conv2d(64, n_classes, kernel_size=1)
         assert self.classifier.weight.shape == (n_classes, 64, 1, 1)

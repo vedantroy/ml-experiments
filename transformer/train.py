@@ -52,7 +52,10 @@ def train_model(epochs: int):
 
             optimizer.zero_grad()
             preds = model(x)
-            assert_shape(preds, (params["batch_size"],  params["sequence_len"], constants["vocab_size"]))
+            assert_shape(
+                preds,
+                (params["batch_size"], params["sequence_len"], constants["vocab_size"]),
+            )
 
             # blocked on: what should the end token be?
 
