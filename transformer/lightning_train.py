@@ -93,9 +93,11 @@ class LightningModel(LightningTemplate):
 
     def configure_optimizers(self):
         optimizer = optim.AdamW(self.parameters(), lr=self.learning_rate)
-        return {
-            "optimizer": optimizer,
-        }
+        scheduler = optim.lr_scheduler.CosineAnnealingLR(optimizer, T_max=1000)
+        return [optimizer], [scheduler]
+        #return {
+        #    "optimizer": optimizer,
+        #}
 
     def training_step(self, batch, batch_idx):
         super().training_step(batch, batch_idx)
@@ -134,9 +136,9 @@ class LightningModel(LightningTemplate):
                 "validation_loss": loss,
                 "step": self.training_batches_seen,
                 "epoch": self.trainer.current_epoch,
+                "learning_rate": self.lr_schedulers().get_last_lr()[0]
             }
         )
-
 
 if __name__ == "__main__":
     run(
@@ -146,21 +148,21 @@ if __name__ == "__main__":
         default_config=dict(
             val_percent=10,
             batch_size=64,
-            learning_rate=5e-3,
+            learning_rate=5e-4,
             epochs=5000,
             vocab_size=128,
             heads=4,
             d_model=128,
             widening_factor=4,
             sequence_len=64,
-            layers=4,
+            layers=6,
             amp=False,
             loader_args=dict(
                 num_workers=4,
                 batch_size=64,
             )
         ),
-        trainer_args=dict(accelerator="gpu", devices=1, val_check_interval=1.0),
+        trainer_args=dict(accelerator="gpu", devices=1, val_check_interval=1.0, gradient_clip_val=1.0),
         get_dataset=lambda config: BasicDataset(
             file_name="./data/shakespeare.txt",
             sequence_len=config["sequence_len"],
