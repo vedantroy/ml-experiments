@@ -23,11 +23,18 @@ class EarlyStop(RuntimeError):
     pass
 
 
+# [[1, 2, 3], [4, 5, 6]] => [[1, 4], [2, 5], [3, 6]]
+def stack(arr):
+    row_len = len(arr[0])
+    cols = [[] for _ in range(row_len)]
+    for x in arr:
+        for idx, col in enumerate(cols):
+            col.append(x[idx])
+    return tuple(cols)
+
+
 def get_losses(batch, model, n_classes):
     imgs, masks = batch["image"], batch["mask"]
-
-    # imgs = imgs.to(device=self.device, dtype=torch.float32)
-    # masks = masks.to(device=self.device, dtype=torch.long)
 
     mask_preds = model(imgs)
     probs = F.softmax(mask_preds, dim=1).float()
@@ -128,20 +135,22 @@ class LightningModel(pl.LightningModule):
         if len(outputs) == 0:
             return
 
-        cross_entropy = dice = combined = []
-        batch_sample = None
-        for cur_cross_entropy, cur_dice, cur_combined, cur_batch_sample in outputs:
-            if cur_batch_sample:
-                batch_sample = cur_batch_sample
-            cross_entropy.append(cur_cross_entropy)
-            dice.append(cur_dice)
-            combined.append(cur_combined)
+        # cross_entropy = dice = combined = []
+        # batch_sample = None
+        # for cur_cross_entropy, cur_dice, cur_combined, cur_batch_sample in outputs:
+        #    if cur_batch_sample:
+        #        batch_sample = cur_batch_sample
+        #    cross_entropy.append(cur_cross_entropy)
+        #    dice.append(cur_dice)
+        #    combined.append(cur_combined)
+
+        cross_entropy, dice, combined, batch_samples = stack(outputs)
 
         cross_entropy = torch.stack(cross_entropy).mean()
         dice = torch.stack(dice).mean()
         combined = torch.stack(combined).mean()
 
-        (imgs, masks, mask_preds) = batch_sample
+        (imgs, masks, mask_preds) = batch_samples[0]
 
         wandb.log(
             {
@@ -263,7 +272,6 @@ if __name__ == "__main__":
         except EarlyStop:
             print("Trainer was stopped by signal handler")
             pass
-
 
     print("Saving PL checkpoint")
     lightning_checkpoint = p / "lightning.checkpoint"
