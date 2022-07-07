@@ -15,10 +15,8 @@ from model import UNet
 import wandb
 from data import BasicDataset
 
-
 from loss import dice_loss
 from utils import convert_mask_to_ground_truth
-
 
 def get_losses(batch, model, n_classes):
     imgs, masks = batch["image"], batch["mask"]
@@ -43,6 +41,7 @@ class LightningModel(pl.LightningModule):
         percent_of_data_used_for_validation: int,
         batch_size: int,
         run_id: str,
+        learning_rate: int,
         **kwargs,
     ):
         super().__init__()
@@ -71,8 +70,9 @@ class LightningModel(pl.LightningModule):
         )
         self.sample_arg = None
         self.run_id = run_id
-        self.learning_rate = kwargs["learning_rate"]
+        self.learning_rate = learning_rate
         self.early_exit = False
+        self.training_started = False
 
     def forward(self, x):
         return self.model(x)
@@ -87,13 +87,15 @@ class LightningModel(pl.LightningModule):
             return -1
 
     def training_step(self, batch, batch_idx):
+        self.training_started = True
         cross_entropy, dice, combined, _ = get_losses(batch, self, self.model.n_classes)
         wandb.log(
             {
                 "loss_cross_entropy": cross_entropy,
                 "loss_dice": dice,
                 "loss_combined": combined,
-                "step": trainer.global_step
+                "step": trainer.global_step,
+                "epoch": trainer.current_epoch
             }
         )
         return combined
@@ -105,12 +107,17 @@ class LightningModel(pl.LightningModule):
         if self.sample_arg == None:
             self.sample_arg = imgs
 
+        if not self.training_started:
+            # For some reason PL calls validation twice before anything has really happened
+            return
+
         wandb.log(
             {
                 "validation_loss_cross_entropy": cross_entropy,
                 "validation_loss_dice": dice,
                 "validation_loss_combined": combined,
-                "step": trainer.global_step
+                "step": trainer.global_step,
+                "epoch": trainer.current_epoch
             }
         )
         wandb.log(
@@ -198,12 +205,10 @@ if __name__ == "__main__":
     p = Path(f"./runs/{run_id}")
     p.mkdir(parents=True, exist_ok=True)
 
-    #logger = WandbLogger(project="UNet", id=run_id)
     trainer = pl.Trainer(
         accelerator="gpu",
         devices=1,
         max_epochs=config["epochs"],
-        #logger=logger,
         enable_checkpointing=False,
     )
     model = LightningModel(**config, run_id=run_id)
@@ -224,6 +229,8 @@ if __name__ == "__main__":
 
     lightning_checkpoint = p / "lightning.checkpoint"
     trainer.save_checkpoint(lightning_checkpoint)
+    torch.save(model.model.state_dict(), p / "model.pt")
+
     if os.environ.get("WANDB_MODE") != "disabled":
         torch.save(config, p / "wandb.checkpoint")
 
