@@ -12,7 +12,6 @@ import wandb
 from template import stack_apply, EarlyStop, LightningTemplate, run
 from model import Transformer
 
-
 class BasicDataset(Dataset):
     def __init__(self, file_name: str, sequence_len: int, vocab_size: int):
         p = Path(file_name)
@@ -106,13 +105,14 @@ class LightningModel(LightningTemplate):
         wandb.log(
             {
                 "loss": loss,
-                "step": self.trainer.global_step,
+                "step": self.training_batches_seen,
                 "epoch": self.trainer.current_epoch,
             }
         )
         return loss
 
     def validation_step(self, batch, batch_idx):
+        # Don't do logging in here, since `self.training_batches_seen` won't update
         loss, (x, y) = get_losses(batch, self, self.vocab_size)
 
         if not self.training_started:
@@ -132,7 +132,7 @@ class LightningModel(LightningTemplate):
         wandb.log(
             {
                 "validation_loss": loss,
-                "step": self.trainer.global_step,
+                "step": self.training_batches_seen,
                 "epoch": self.trainer.current_epoch,
             }
         )
@@ -166,4 +166,5 @@ if __name__ == "__main__":
             sequence_len=config["sequence_len"],
             vocab_size=config["vocab_size"],
         ),
+        export_on_interrupt=True,
     )

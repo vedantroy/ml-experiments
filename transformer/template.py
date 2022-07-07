@@ -3,6 +3,7 @@ import argparse
 import signal
 import os
 import sys
+from importlib_metadata import metadata
 
 import wandb
 import torch
@@ -31,6 +32,17 @@ def stack_apply(arr, idxs_to_func):
             results[idx] = v(results[idx])
     return tuple(results)
 
+def save_final_files(root_path, model, sample_arg, training_batches_seen):
+        # For some reason the model gets transferred off of the GPU?
+        device = torch.device("cpu")
+        assert sample_arg.is_cuda
+        model_path = root_path / f"final_model-{training_batches_seen}.pt"
+        model_onnx_path = root_path / f"final_model-{training_batches_seen}.onnx"
+        torch.save(model.state_dict(), model_path)
+        torch.onnx.export(model.to(device), sample_arg.to(device), model_onnx_path)
+        wandb.save(str(model_path))
+        wandb.save(str(model_onnx_path))
+
 
 class LightningTemplate(pl.LightningModule):
     def __init__(
@@ -40,6 +52,7 @@ class LightningTemplate(pl.LightningModule):
         model,
         run_id,
         loader_args,
+        training_batches_seen,
         **kwargs,
     ):
         super().__init__()
@@ -52,6 +65,7 @@ class LightningTemplate(pl.LightningModule):
         self.training_started = False
         self.run_id = run_id
         self.loader_args = {**loader_args, "pin_memory": self.device.type == "cuda"}
+        self.training_batches_seen = training_batches_seen
 
     def train_dataloader(self):
         loader = DataLoader(
@@ -64,7 +78,7 @@ class LightningTemplate(pl.LightningModule):
 
     def val_dataloader(self):
         loader = DataLoader(
-            self.val_ds, drop_last=True, shuffle=True, **self.loader_args
+            self.val_ds, drop_last=True, shuffle=False, **self.loader_args
         )
         assert (
             len(loader) > 0
@@ -76,6 +90,7 @@ class LightningTemplate(pl.LightningModule):
 
     # Override this method & call super
     def training_step(self, batch, batch_idx):
+        self.training_batches_seen += 1
         self.training_started = True
         if batch_idx > 0:
             assert (
@@ -85,22 +100,6 @@ class LightningTemplate(pl.LightningModule):
     def on_train_batch_start(self, batch, batch_idx: int, unused: int = 0):
         if self.early_exit:
             raise EarlyStop()
-
-    def on_train_end(self):
-        # This should never happen??
-        if self.early_exit:
-            return
-
-        print("Uploading final files")
-        path = Path(f"./runs/{self.run_id}")
-
-        model_path = path / "final_model.pt"
-        model_onnx_path = path / "final_model.onnx"
-        torch.save(self.state_dict(), model_path)
-        torch.onnx.export(self.model, self.sample_arg, model_onnx_path)
-        wandb.save(str(model_path))
-        wandb.save(str(model_onnx_path))
-
 
 def get_args(description):
     parser = argparse.ArgumentParser(description=description)
@@ -140,7 +139,7 @@ def split_dataset(dataset, val_percent):
 
 
 def run(
-    description, project_name, ModelClass, default_config, trainer_args, get_dataset
+    description, project_name, ModelClass, default_config, trainer_args, get_dataset, export_on_interrupt
 ):
     check_config(default_config)
     check_trainer_args(trainer_args)
@@ -153,19 +152,23 @@ def run(
         is_resuming = True
         run_id = args.id
         print(f"Resuming run with id: {run_id} from checkpoint")
-        lighting_checkpoint = Path(f"./runs/{run_id}/lightning.checkpoint")
-        wandb_checkpoint = Path(f"./runs/{run_id}/wandb.checkpoint")
+        p = Path(f"./runs/{run_id}")
+        metadata_checkpoint = Path(p / "metadata.checkpoint")
+        lighting_checkpoint = Path(p / "lightning.checkpoint")
+        wandb_checkpoint = Path(p / "wandb.checkpoint")
         if not lighting_checkpoint.is_file():
             raise FileNotFoundError(
                 f"Could not find checkpoint at {lighting_checkpoint}"
             )
         config = torch.load(wandb_checkpoint)
+        metadata = torch.load(metadata_checkpoint)
         check_config(config)
         dataset = get_dataset(config)
         train_set, val_set = split_dataset(dataset, config["val_percent"])
         model = ModelClass.load_from_checkpoint(
             lighting_checkpoint,
             **config,
+            **metadata,
             run_id=run_id,
             train_ds=train_set,
             val_ds=val_set,
@@ -176,7 +179,8 @@ def run(
         config = default_config
         dataset = get_dataset(config)
         train_set, val_set = split_dataset(dataset, config["val_percent"])
-        model = ModelClass(**config, run_id=run_id, train_ds=train_set, val_ds=val_set)
+        metadata = { "training_batches_seen": 0 }
+        model = ModelClass(**config, **metadata, run_id=run_id, train_ds=train_set, val_ds=val_set)
 
     p = Path(f"./runs/{run_id}")
     p.mkdir(parents=True, exist_ok=True)
@@ -192,6 +196,7 @@ def run(
     print(f"Running trainer with args: {trainer_args}")
     trainer = pl.Trainer(**trainer_args)
 
+    interrupted = False
     with wandb.init(
         project=project_name,
         id=run_id,
@@ -208,11 +213,19 @@ def run(
             trainer.fit(model)
         except EarlyStop:
             print("Trainer was stopped by signal handler")
+            interrupted = True
+
+        
+        if not interrupted or export_on_interrupt:
+            print("Exporting final model files...")
+            save_final_files(p, model.model, model.sample_arg, model.training_batches_seen)
 
     print("Saving PL checkpoint")
     lightning_checkpoint = p / "lightning.checkpoint"
     trainer.save_checkpoint(lightning_checkpoint)
     torch.save(model.model.state_dict(), p / "model.pt")
+    print("Saving metadata checkpoint")
+    torch.save({"training_batches_seen": model.training_batches_seen}, p / "metadata.checkpoint")
 
     if os.environ.get("WANDB_MODE") != "disabled":
         print("Saving WANDB checkpoint")
