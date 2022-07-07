@@ -36,9 +36,6 @@ def get_losses(batch, model, n_classes):
     return (loss_cross_entropy, loss_dice, combined_loss, (imgs, masks, mask_preds))
 
 
-EXIT_TRAINER = False
-
-
 class LightningModel(pl.LightningModule):
     def __init__(
         self,
