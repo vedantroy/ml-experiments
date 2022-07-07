@@ -9,8 +9,10 @@ import torch
 from torch.utils.data import DataLoader, random_split
 import pytorch_lightning as pl
 
+
 class EarlyStop(RuntimeError):
     pass
+
 
 # [[1, 2, 3], [4, 5, 6]] => [[1, 4], [2, 5], [3, 6]]
 def stack(arr):
@@ -19,7 +21,7 @@ def stack(arr):
     for x in arr:
         for idx, col in enumerate(cols):
             col.append(x[idx])
-    return tuple(cols)
+    return cols
 
 
 def stack_apply(arr, idxs_to_func):
@@ -27,7 +29,7 @@ def stack_apply(arr, idxs_to_func):
     for (k, v) in idxs_to_func.items():
         for idx in k:
             results[idx] = v(results[idx])
-    return results
+    return tuple(results)
 
 
 class LightningTemplate(pl.LightningModule):
@@ -40,6 +42,7 @@ class LightningTemplate(pl.LightningModule):
         loader_args,
         **kwargs,
     ):
+        super().__init__()
         self.train_ds = train_ds
         self.val_ds = val_ds
         self.model = model
@@ -76,8 +79,8 @@ class LightningTemplate(pl.LightningModule):
         self.training_started = True
         if batch_idx > 0:
             assert (
-                self.sample_arg
-            ), "Missing sample arg even though at least 1 training step finished"
+                self.sample_arg != None
+            ), f"Missing sample arg even though batch idx was: {batch_idx}"
 
     def on_train_batch_start(self, batch, batch_idx: int, unused: int = 0):
         if self.early_exit:
@@ -112,7 +115,7 @@ def get_args(description):
 
 
 def check_config(config):
-    assert "percent_of_data_used_for_validation" in config
+    assert "val_percent" in config
     assert "batch_size" in config
     assert "amp" in config
     assert "epochs" in config
@@ -121,7 +124,6 @@ def check_config(config):
 def check_trainer_args(trainer_args):
     assert "accelerator" in trainer_args
     assert "devices" in trainer_args
-
 
 def split_dataset(dataset, val_percent):
     n_val = int(len(dataset) * (val_percent / 100))
@@ -137,13 +139,16 @@ def split_dataset(dataset, val_percent):
     return train_set, val_set
 
 
-def run(description, project_name, ModelClass, default_config, trainer_args, get_dataset):
+def run(
+    description, project_name, ModelClass, default_config, trainer_args, get_dataset
+):
     check_config(default_config)
     check_trainer_args(trainer_args)
     args = get_args(description=description)
     pl.seed_everything(42)
 
     model = run_id = config = None
+    is_resuming = False
     if args.id:
         is_resuming = True
         run_id = args.id
@@ -176,14 +181,14 @@ def run(description, project_name, ModelClass, default_config, trainer_args, get
     p = Path(f"./runs/{run_id}")
     p.mkdir(parents=True, exist_ok=True)
 
-    trainer_args = dict(
+    final_trainer_args = dict(
         max_epochs=config["epochs"],
         enable_checkpointing=False,
         precision=16 if config["amp"] else 32,
         # check validation set twice per epoch
         val_check_interval=0.5,
-        **trainer_args,
     )
+    final_trainer_args = {**final_trainer_args, **trainer_args}
     print(f"Running trainer with args: {trainer_args}")
     trainer = pl.Trainer(**trainer_args)
 

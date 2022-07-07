@@ -71,23 +71,24 @@ class LightningModel(LightningTemplate):
         heads: int,
         **kwargs,
     ):
-        super().__init__()
-        mask = torch.tril(torch.ones((sequence_len, sequence_len))).to(self.device)
-        self.learning_rate = learning_rate
-        self.model = Transformer(
-            vocab_size=vocab_size,
-            num_heads=heads,
-            d_model=d_model,
-            widening_factor=widening_factor,
-            sequence_len=sequence_len,
-            layers=layers,
-            mask=mask,
-            params={
-                "batch_size": batch_size,
-                "sequence_len": sequence_len,
-                "d_model": d_model,
-            },
+        super().__init__(
+            model=Transformer(
+                vocab_size=vocab_size,
+                num_heads=heads,
+                d_model=d_model,
+                widening_factor=widening_factor,
+                sequence_len=sequence_len,
+                layers=layers,
+                mask=torch.tril(torch.ones((sequence_len, sequence_len))),
+                params={
+                    "batch_size": batch_size,
+                    "sequence_len": sequence_len,
+                    "d_model": d_model,
+                },
+            ),
+            **kwargs,
         )
+        self.learning_rate = learning_rate
 
         self.vocab_size = vocab_size
 
@@ -100,7 +101,7 @@ class LightningModel(LightningTemplate):
     def training_step(self, batch, batch_idx):
         super().training_step(batch, batch_idx)
         loss, (x, _) = get_losses(batch, self, self.vocab_size)
-        if not self.sample_arg:
+        if self.sample_arg == None:
             self.sample_arg = x
         wandb.log(
             {
@@ -120,7 +121,10 @@ class LightningModel(LightningTemplate):
 
         return (loss, (x, y) if batch_idx == 0 else None)
 
-    def on_validation_epoch_end(self, outputs) -> None:
+    def validation_epoch_end(self, outputs) -> None:
+        if len(outputs) == 0:
+            return
+
         loss, (x, y) = stack_apply(
             outputs, {(0,): lambda x: torch.stack(x).mean(), (1,): lambda x: x[0]}
         )
@@ -140,7 +144,7 @@ if __name__ == "__main__":
         project_name="Shakespeare Transformer",
         ModelClass=LightningModel,
         default_config=dict(
-            percent_of_data_used_for_validation=10,
+            val_percent=10,
             batch_size=64,
             learning_rate=5e-3,
             epochs=5000,
@@ -151,8 +155,12 @@ if __name__ == "__main__":
             sequence_len=64,
             layers=4,
             amp=False,
+            loader_args=dict(
+                num_workers=4,
+                batch_size=64,
+            )
         ),
-        trainer_args=dict(accelerator="gpu", devices=1, val_check_interval=1),
+        trainer_args=dict(accelerator="gpu", devices=1, val_check_interval=1.0),
         get_dataset=lambda config: BasicDataset(
             file_name="./data/shakespeare.txt",
             sequence_len=config["sequence_len"],
