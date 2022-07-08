@@ -110,6 +110,12 @@ def get_args(description):
         default=False,
         help="Load model using an existing run id",
     )
+    parser.add_argument(
+        "command",
+        type=str,
+        default=False,
+        help="The command (new, resume, split)",
+    )
     return parser.parse_args()
 
 
@@ -146,22 +152,36 @@ def run(
     args = get_args(description=description)
     pl.seed_everything(42)
 
+    command = args.command
+    assert command in ["new", "resume", "split"], "Command must be one of 'new', 'resume', 'split'"
+
     model = run_id = config = None
-    is_resuming = False
+    is_resuming = command == "resume"
     if args.id:
-        is_resuming = True
         run_id = args.id
-        print(f"Resuming run with id: {run_id} from checkpoint")
+        if is_resuming:
+            print(f"Resuming run with id: {run_id} from checkpoint")
         p = Path(f"./runs/{run_id}")
-        metadata_checkpoint = Path(p / "metadata.checkpoint")
         lighting_checkpoint = Path(p / "lightning.checkpoint")
-        wandb_checkpoint = Path(p / "wandb.checkpoint")
         if not lighting_checkpoint.is_file():
             raise FileNotFoundError(
                 f"Could not find checkpoint at {lighting_checkpoint}"
             )
-        config = torch.load(wandb_checkpoint)
+
+        metadata_checkpoint = Path(p / "metadata.checkpoint")
         metadata = torch.load(metadata_checkpoint)
+
+        config = None
+        if is_resuming:
+            wandb_checkpoint = Path(p / "wandb.checkpoint")
+            config = torch.load(wandb_checkpoint)
+        else:
+            assert command == "split"
+            config = default_config
+            old_run_id = run_id
+            run_id = wandb.util.generate_id()
+            print(f"Starting new run with id: {run_id} based off of run with id: {old_run_id}")
+
         check_config(config)
         dataset = get_dataset(config)
         train_set, val_set = split_dataset(dataset, config["val_percent"])
@@ -174,6 +194,7 @@ def run(
             val_ds=val_set,
         )
     else:
+        assert command == "new", f"Only 'new' supports running without an id"
         run_id = wandb.util.generate_id()
         print(f"Starting new run with id: {run_id}")
         config = default_config
