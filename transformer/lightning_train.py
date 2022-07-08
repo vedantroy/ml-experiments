@@ -68,6 +68,7 @@ class LightningModel(LightningTemplate):
         widening_factor: int,
         layers: int,
         heads: int,
+        dropout:  float,
         **kwargs,
     ):
         super().__init__(
@@ -83,6 +84,7 @@ class LightningModel(LightningTemplate):
                     "batch_size": batch_size,
                     "sequence_len": sequence_len,
                     "d_model": d_model,
+                    "dropout": dropout,
                 },
             ),
             **kwargs,
@@ -151,11 +153,12 @@ if __name__ == "__main__":
             learning_rate=5e-4,
             epochs=5000,
             vocab_size=128,
-            heads=4,
-            d_model=128,
+            heads=8,
+            d_model=512,
             widening_factor=4,
             sequence_len=64,
             layers=6,
+            dropout=0.1,
             amp=False,
             loader_args=dict(
                 num_workers=4,

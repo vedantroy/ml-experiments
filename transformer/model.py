@@ -112,15 +112,22 @@ class DecoderLayer(nn.Module):
         self.d_ff = widening_factor * d_model
 
         self.attention = MultiHeadAttention(d_model, num_heads, mask, params)
+
+        # From paper:
+        # > We apply dropout [33] to the output of each sub-layer, before it is added to the
+        # > sub-layer input and normalized.
+        self.dropout1 = nn.Dropout(p=params["dropout"])
         # TODO: How was this epsilon chosen?
-        # TODO: We need to layer normalization w/o learnable parameters
+        # TODO: Why would we do layer norm without learnable parameters? (`elementwise_affine=False`)
+        # TODO: We need layer normalization
         self.norm1 = nn.LayerNorm(d_model, eps=1e-6, elementwise_affine=False)
 
         # https://stats.stackexchange.com/questions/485910/what-is-the-role-of-feed-forward-layer-in-transformer-neural-network-architectur
         self.lin1 = nn.Linear(d_model, self.d_ff)
         self.relu = nn.ReLU()
         self.lin2 = nn.Linear(self.d_ff, d_model)
-        # TODO: We need to layer normalization w/o learnable parameters
+
+        self.dropout2 = nn.Dropout(p=params["dropout"])
         self.norm2 = nn.LayerNorm(d_model, eps=1e-6, elementwise_affine=False)
 
     def forward(self, x):
@@ -135,7 +142,7 @@ class DecoderLayer(nn.Module):
         assert x.shape == (batch_size, sequence_len, d_model)
 
         # add & normalize
-        x = self.norm1(original_x + x)
+        x = self.norm1(self.dropout1(original_x + x))
         assert x.shape == (batch_size, sequence_len, d_model)
 
         original_x = x
@@ -146,7 +153,7 @@ class DecoderLayer(nn.Module):
         assert x.shape == (batch_size, sequence_len, d_model)
 
         # add & normalize again
-        x = self.norm2(original_x + x)
+        x = self.norm2(self.dropout2(original_x + x))
         return x
 
 
@@ -200,6 +207,8 @@ class Transformer(nn.Module):
         # Our `initialize_weights` function doesn't cover this for some reason
         nn.init.kaiming_uniform_(self.positional_embedding)
 
+        self.embedding_dropout = nn.Dropout(p=params["dropout"])
+
         assert self.vocab_embedding.weight.shape == (vocab_size, d_model)
         assert self.positional_embedding.shape == (sequence_len, d_model)
 
@@ -228,6 +237,10 @@ class Transformer(nn.Module):
         embeddings = self.vocab_embedding(x)
         assert embeddings.shape == (batch_size, sequence_len, self.params["d_model"])
         embeddings_with_positions = embeddings + self.positional_embedding
+        embeddings_with_positions = self.embedding_dropout(embeddings_with_positions)
+
+        # From paper
+        # > we apply dropout to the sums of the embeddings and the positional encodings
 
         decoder_output = embeddings_with_positions
         for layer in self.decoder_layers:
