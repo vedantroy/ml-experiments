@@ -3,8 +3,8 @@ const fs = require("fs")
 const tqdm = require("tqdm")
 const { open, asBinary } = require("lmdb")
 
-const DB_PATH = "../data/db"
-const TAGS_DB_PATH = "../data/db_tags"
+const DB_PATH = "../artifacts/lmdb/all"
+const TAGS_DB_PATH = "../artifacts/lmdb/tags"
 
 const STRUCTURES_KEY = Symbol.for("STRUCTURES")
 const ENTRIES_KEY = "__length"

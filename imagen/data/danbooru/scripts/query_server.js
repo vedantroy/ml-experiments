@@ -10,7 +10,7 @@ const rl = readline.createInterface({
   terminal: false,
 });
 
-const DB_PATH = path.normalize(`${__dirname}/../data/db_tags`)
+const DB_PATH = path.normalize(`${__dirname}/../artifacts/lmdb/tags`)
 const dbExists = fs.existsSync(DB_PATH);
 
 if (!dbExists) {

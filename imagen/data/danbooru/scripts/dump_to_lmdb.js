@@ -7,8 +7,8 @@ const assert = require("assert")
 const tqdm = require("tqdm")
 const { open } = require("lmdb")
 
-const DB_PATH = "../data/db"
-const CHUNKS_DIR = "../data/chunks"
+const DB_PATH = "../artifacts/lmdb/all"
+const CHUNKS_DIR = "../raw/chunks"
 
 async function lines(filePath, { db }) {
     const wcStdout = child_process.execSync(`wc -l < ${filePath}`).toString()

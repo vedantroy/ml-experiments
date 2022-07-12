@@ -11,9 +11,42 @@ import wandb
 
 from dataloader import ImageCaptionDataset
 
+config = {
+    "dim": 256,
+    "batch_size": 4,
+}
 # @ batch_size = 2 => 1.71it/s = 3.42
 # @ batch_size = 4 => 1.08it/s = 4.32
 # crashes @ batch_size = 6
+ds = ImageCaptionDataset(
+    img_dir_path="./data/danbooru/raw/imgs",
+    caption_server_path="./data/danbooru/scripts/query_server.js",
+)
+
+batch_size = config["batch_size"]
+train_ds, val_ds = random_split(ds, [len(ds) - batch_size * 5, batch_size * 5])
+print(f"# images: {len(train_ds)}")
+
+train_dl = DataLoader(
+    train_ds,
+    batch_size=config["batch_size"],
+    shuffle=True,
+    pin_memory=True,
+    num_workers=1,
+)
+val_dl = DataLoader(val_ds, batch_size, shuffle=False, pin_memory=True,)
+train_dl_iter = iter(train_dl)
+
+# Uncomment this if you want to see how long it takes to just run the dataloader
+#def test_dataloader():
+#    i = 0
+#    for batch in tqdm(train_dl_iter):
+#        i += 1
+#        if i == 100:
+#            break
+#
+#
+#test_dataloader()
 
 
 def save(id, trainer, metadata):
@@ -27,10 +60,10 @@ def save(id, trainer, metadata):
     trainer.save(trainer_ckpt)
     torch.save(metadata, metadata_ckpt)
 
-
     if os.environ.get("WANDB_MODE") != "disabled":
         wandb.save(str(trainer_ckpt))
         wandb.save(str(metadata_ckpt))
+
 
 def get_args(description):
     parser = argparse.ArgumentParser(description)
@@ -52,11 +85,6 @@ resuming = bool(args.id)
 run_id = args.id if resuming else wandb.util.generate_id()
 step = 0
 
-config = {
-    "dim": 256,
-    "batch_size": 4,
-}
-
 # text => img UNet
 unet1 = BaseUnet64(
     # do 1/2 the dim (speedup training size)
@@ -67,24 +95,8 @@ imagen = Imagen(
     unets=(unet1,),
     image_sizes=(64,),
     # If True, this just does 0 to 1 => -1 to 1
-    auto_normalize_img=True
+    auto_normalize_img=True,
 ).cuda()
-
-ds = ImageCaptionDataset(
-    img_dir_path="./data/danbooru/data/dataset/imgs",
-    caption_server_path="./data/danbooru/scripts/query_server.js",
-)
-
-batch_size = config["batch_size"]
-train_ds, val_ds = random_split(ds, [len(ds) - batch_size * 5, batch_size * 5])
-print(f"# images: {len(train_ds)}")
-
-train_dl = DataLoader(
-    train_ds, batch_size=config["batch_size"], shuffle=True, pin_memory=True
-)
-val_dl = DataLoader(val_ds, batch_size, shuffle=False, pin_memory=True)
-
-train_dl_iter = iter(train_dl)
 trainer = ImagenTrainer(imagen)
 
 
@@ -139,7 +151,7 @@ def run():
                 for batch in val_dl:
                     last_batch = batch
 
-                    # torch.no_grad() doesn't work here for some reason
+                    # torch.nograd() doesn't work here for some reason
                     loss = trainer(
                         images=batch["img"],
                         texts=batch["caption"],
@@ -159,7 +171,9 @@ def run():
                 if step % 9999 == 0:
                     # sample run time
                     N_SAMPLES = 3
-                    imgs = trainer.sample(last_batch["caption"][:N_SAMPLES], cond_scale=3.0)
+                    imgs = trainer.sample(
+                        last_batch["caption"][:N_SAMPLES], cond_scale=3.0
+                    )
 
                     trips = [
                         (
@@ -177,6 +191,7 @@ def run():
                     wandb.log(to_log)
 
                 trainer.zero_grad()
+
 
 with wandb.init(
     project="Imagen", id=run_id, resume="must" if resuming else "never", config=config
