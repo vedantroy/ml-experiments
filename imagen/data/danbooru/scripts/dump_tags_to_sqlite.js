@@ -8,7 +8,7 @@ const tqdm = require("tqdm")
 const load = require("better-sqlite3")
 const _ = require("lodash")
 
-const DB_PATH = "../data/db.sqlite"
+const DB_PATH = "../artifacts/tags.sqlite"
 const CHUNKS_DIR = "../data/chunks"
 
 async function lines(filePath, { db }) {
