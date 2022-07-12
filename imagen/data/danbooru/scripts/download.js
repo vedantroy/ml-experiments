@@ -1,7 +1,7 @@
 const child_process = require("child_process");
 
 const HOST = "176.9.41.242:873";
-const OUT_DIR = "../data/dataset";
+const OUT_DIR = "../data/dataset/imgs";
 
 for (let i = 0; i < 200; ++i) {
   const bucket = i.toString().padStart("4", "0");
