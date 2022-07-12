@@ -29,8 +29,8 @@ def save(id, trainer, metadata):
 
 
     if os.environ.get("WANDB_MODE") != "disabled":
-        wandb.save(trainer_ckpt)
-        wandb.save(metadata_ckpt)
+        wandb.save(str(trainer_ckpt))
+        wandb.save(str(metadata_ckpt))
 
 def get_args(description):
     parser = argparse.ArgumentParser(description)
@@ -182,6 +182,7 @@ with wandb.init(
 ):
     try:
         run()
-    except KeyboardInterrupt:
+    except KeyboardInterrupt as e:
         print("Interrupted ...")
         save(run_id, trainer, {"step": step})
+        raise e
