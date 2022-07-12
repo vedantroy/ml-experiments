@@ -1,0 +1,3 @@
+~ 1428 chars / bytes per line
+JS cannot create a string longer than 536870888 (~ 536 million) characters
+(775 megabytes to bytes) / 536 million bytes = 1.446
