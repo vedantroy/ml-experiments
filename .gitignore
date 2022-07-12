@@ -1,6 +1,7 @@
 __pycache__
-data/
 wandb/
 run-checkpoints/
 runs/
 lightning_logs/
+
+data/
