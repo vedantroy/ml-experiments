@@ -1,3 +1,4 @@
+import os
 import argparse
 from pathlib import Path
 from random import random
@@ -16,7 +17,7 @@ from dataloader import ImageCaptionDataset
 
 
 def save(id, trainer, metadata):
-    steps = metadata["steps"]
+    steps = metadata["step"]
     path = Path(f"./runs/{id}") / str(steps)
     path.mkdir(exist_ok=False, parents=True)
 
@@ -26,9 +27,10 @@ def save(id, trainer, metadata):
     trainer.save(trainer_ckpt)
     torch.save(metadata, metadata_ckpt)
 
-    wandb.save(trainer_ckpt)
-    wandb.save(metadata_ckpt)
 
+    if os.environ.get("WANDB_MODE") != "disabled":
+        wandb.save(trainer_ckpt)
+        wandb.save(metadata_ckpt)
 
 def get_args(description):
     parser = argparse.ArgumentParser(description)
@@ -88,15 +90,17 @@ trainer = ImagenTrainer(imagen)
 def run():
     global step
 
-    if run_id:
+    if resuming:
+        print(f"Loading state for run id: {run_id}")
         checkpoints = list(Path(f"./runs/{run_id}").glob("*"))
 
         def get_step(p):
-            dir_name = p.split("/")[-1]
+            dir_name = str(p).split("/")[-1]
             return int(dir_name)
 
         checkpoints.sort(key=get_step)
         most_recent_checkpoint = checkpoints[-1]
+        print(f"Resuming from checkpoint: {most_recent_checkpoint}")
 
         trainer.load(most_recent_checkpoint / "trainer.ckpt")
         metadata = torch.load(most_recent_checkpoint / "metadata.ckpt")
@@ -125,7 +129,7 @@ def run():
             step += 1
 
             # checkpoint model & do sample run
-            if step % 1000 == 0:
+            if step % 999 == 0:
                 print("Checkpointing ...")
                 save(run_id, trainer, {"step": step})
 
@@ -133,14 +137,15 @@ def run():
                 losses = []
                 for batch in val_dl:
                     last_batch = batch
-                    with torch.no_grad():
-                        loss = trainer(
-                            images=batch["img"],
-                            text=batch["caption"],
-                            unet_number=1,
-                            max_batch_size=batch_size,
-                        )
-                        losses.append(loss)
+
+                    # torch.no_grad() doesn't work here for some reason
+                    loss = trainer(
+                        images=batch["img"],
+                        texts=batch["caption"],
+                        unet_number=1,
+                        max_batch_size=batch_size,
+                    )
+                    losses.append(loss)
 
                 wandb.log(
                     {
@@ -149,24 +154,28 @@ def run():
                     }
                 )
 
-                # sample run time
-                N_SAMPLES = 3
-                imgs = trainer.sample(last_batch["caption"][:N_SAMPLES], cond_scale=3.0)
+                # sample runs take a *long* time (~ 3 minutes)
+                if step % 9999 == 0:
+                    # sample run time
+                    N_SAMPLES = 3
+                    imgs = trainer.sample(last_batch["caption"][:N_SAMPLES], cond_scale=3.0)
 
-                trips = [
-                    (
-                        ("prompt" + str(idx), last_batch["caption"][idx]),
-                        ("img" + str(idx), last_batch["img"][idx]),
-                        ("actual" + str(idx), imgs[idx]),
-                    )
-                    for idx in range(N_SAMPLES)
-                ]
+                    trips = [
+                        (
+                            ("prompt" + str(idx), last_batch["caption"][idx]),
+                            ("img" + str(idx), last_batch["img"][idx]),
+                            ("actual" + str(idx), imgs[idx]),
+                        )
+                        for idx in range(N_SAMPLES)
+                    ]
 
-                to_log = {}
-                for pairs in trips:
-                    for (k, v) in pairs:
-                        to_log[k] = v
-                wandb.log(to_log)
+                    to_log = {}
+                    for pairs in trips:
+                        for (k, v) in pairs:
+                            to_log[k] = v
+                    wandb.log(to_log)
+
+                trainer.zero_grad()
 
 with wandb.init(
     project="Imagen", id=run_id, resume="must" if resuming else "never", config=config
@@ -175,4 +184,4 @@ with wandb.init(
         run()
     except KeyboardInterrupt:
         print("Interrupted ...")
-        save(run_id, trainer, {"steps": step})
+        save(run_id, trainer, {"step": step})
