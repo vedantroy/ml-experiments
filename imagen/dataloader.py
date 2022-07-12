@@ -1,11 +1,9 @@
 from math import ceil
 from pathlib import Path
-import subprocess
 import pexpect
 
-import torch
+from PIL import Image
 from torch import nn
-import torchvision
 import torchvision.transforms.functional as T
 from torch.utils.data.dataset import Dataset
 
@@ -30,7 +28,16 @@ class ImageCaptionDataset(Dataset):
             return None
         img = None
         try:
-            img = torchvision.io.read_image(path)
+            # We can't use torchvision's read_image
+            # b/c that silently crashes Python
+            img = Image.open(path)
+        except Exception:
+            return None
+
+        try:
+            # PIL will load "truncated" images
+            # that will crash here
+            img = T.pil_to_tensor(img)
         except Exception:
             return None
 
@@ -57,7 +64,9 @@ class ImageCaptionDataset(Dataset):
         img = T.center_crop(img, (TARGET_DIM, TARGET_DIM))
 
         # transform from 0 to 255 => -1 to 1
-        img = ((img / 255) * 2) - 1
+        # img = ((img / 255) * 2) - 1
+        img = img / 255
+
         # assert torch.max(img).item() <= 1
         # assert torch.min(img).item() >= -1
         return img

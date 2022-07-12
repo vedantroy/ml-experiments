@@ -66,7 +66,8 @@ unet1 = BaseUnet64(
 imagen = Imagen(
     unets=(unet1,),
     image_sizes=(64,),
-    auto_normalize_img=False,
+    # If True, this just does 0 to 1 => -1 to 1
+    auto_normalize_img=True
 ).cuda()
 
 ds = ImageCaptionDataset(
@@ -185,4 +186,3 @@ with wandb.init(
     except KeyboardInterrupt as e:
         print("Interrupted ...")
         save(run_id, trainer, {"step": step})
-        raise e
