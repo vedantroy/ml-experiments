@@ -16,7 +16,7 @@ import torchvision
 import torchvision.transforms.functional as T
 from fastargs import Param, Section, get_current_config
 from fastargs.decorators import param
-from tqdm.contrib.concurrent import thread_map 
+from tqdm.contrib.concurrent import thread_map
 
 Section("files", "inputs, outputs, etc.").params(
     in_dir=Param(
@@ -46,6 +46,7 @@ config.summary()
 
 conn = None
 deleted = 0
+
 
 @param("files.in_dir")
 # @param("files.tags_db")
@@ -85,17 +86,18 @@ def process_file(path):
         return
 
     if img.shape[0] != 3:
-            # Not RGB
-            path.unlink()
-            deleted += 1
-            return
+        # Not RGB
+        path.unlink()
+        deleted += 1
+        return
 
-    #tags = conn.execute(
+    # tags = conn.execute(
     #    f'select tag from tags where tags.id = "{path.stem}" limit 1'
-    #).fetchone()
-    #if tags == None:
+    # ).fetchone()
+    # if tags == None:
     #    # print(f"Could not find tag for img: {img_id}")
     #    path.unlink()
     #    deleted += 1
+
 
 run()

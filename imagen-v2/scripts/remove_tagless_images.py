@@ -15,13 +15,11 @@ Section("files", "inputs, outputs, etc.").params(
     tags_db=Param(
         str,
         "the sqlite database with id => tag",
-        default="./data/danbooru/artifacts/tags.sqlite"
-    )
+        default="./data/danbooru/artifacts/tags.sqlite",
+    ),
 )
 
-parser = argparse.ArgumentParser(
-    description=""
-)
+parser = argparse.ArgumentParser(description="Delete images without tags")
 config = get_current_config()
 
 config.augment_argparse(parser)
