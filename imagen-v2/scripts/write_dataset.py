@@ -137,8 +137,9 @@ def run(imgs_dir, tags_db, dataset_dir, overwrite):
     ds = ImageCaptionDataset(tags_db=tags_db, img_buckets_dir=imgs_dir)
     dl = DataLoader(ds, batch_size=1, shuffle=False, num_workers=12)
 
+    FIELDS = ["img", "tags", "embeddings", "masks", "tokens"]
     with StreamingDatasetWriter(
-        dataset_dir, ["img", "tags"], shard_size_limit=1 << 24
+        dataset_dir, FIELDS, shard_size_limit=1 << 24
     ) as writer:
         for batch in tqdm(dl):
             img, tags = batch["img"], batch["tags"]
@@ -148,6 +149,11 @@ def run(imgs_dir, tags_db, dataset_dir, overwrite):
             # https://stackoverflow.com/questions/10607468/how-to-reduce-the-image-file-size-using-pil
             # byte_array = io.BytesIO()
             # T.to_pil_image(img).save(byte_array, format="PNG")
+
+            # IMPORTANT: By training on the raw tensors,
+            # you must use the *exact* same Pytorch version
+            # that you used to process the images
+            # Anything else will cause data drift (I think ???)
             img_bytes = save_tensor(img)
 
             # TODO: Might not need to return masks:
@@ -165,10 +171,10 @@ def run(imgs_dir, tags_db, dataset_dir, overwrite):
                     "img": img_bytes,
                     # TODO: We might not even need these, but the size
                     # is neglible compared to the size of the embeddings
-                    "tags": tags[0].encode("utf8"),
+                    "tags": tags[0].encode("utf-8"),
                     "embeddings": embeds_bytes,
                     "masks": masks_bytes,
-                    "tokens": n_tokens,
+                    "tokens": str(n_tokens).encode("utf-8"),
                 },
             )
 
