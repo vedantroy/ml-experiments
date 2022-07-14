@@ -13,26 +13,27 @@ from streaming_dataset import ImageWithCaptions
 
 config = {
     "dim": 256,
-    "batch_size": 4,
+    "batch_size": 1,
 }
 
 batch_size = config["batch_size"]
-ds = ImageWithCaptions("./data/danbooru/artifacts/shards", shuffle=True, batch_size=batch_size)
+ds = ImageWithCaptions("./data/danbooru/artifacts/shards_very_small_3", shuffle=True, batch_size=batch_size)
 
-train_sz = int(len(ds) * 0.98)
+train_sz = int(len(ds) * 0.05)
 val_sz = len(ds) - train_sz
 
 train_ds, val_ds = random_split(ds, [train_sz, val_sz])
 print(f"train: {len(train_ds)}, val: {len(val_ds)}")
+# print(f"train: {len(train_ds)}")
 
 train_dl = DataLoader(
     train_ds,
     batch_size=config["batch_size"],
-    shuffle=True,
+    shuffle=False,
     pin_memory=True,
     num_workers=12,
 )
-val_dl = DataLoader(val_ds, batch_size, shuffle=False, pin_memory=True,)
+# val_dl = DataLoader(val_ds, batch_size, shuffle=False, pin_memory=True, num_workers=4)
 
 def test_dataloader():
     print("Testing dataloader ...")
@@ -77,7 +78,6 @@ args = get_args("Train Imagen")
 
 resuming = bool(args.id)
 run_id = args.id if resuming else wandb.util.generate_id()
-step = 0
 
 # text => img UNet
 unet1 = BaseUnet64(
@@ -92,7 +92,7 @@ imagen = Imagen(
     auto_normalize_img=True,
 ).cuda()
 trainer = ImagenTrainer(imagen)
-trainer.add_valid_dataloader(val_dl)
+trainer.train()
 
 # By batching wandb syncing, we 2x training speed
 def commit():
@@ -100,7 +100,7 @@ def commit():
     return should_commit
 
 def run():
-    global step
+    step = 0
 
     if resuming:
         print(f"Loading state for run id: {run_id}")
@@ -118,8 +118,10 @@ def run():
         metadata = torch.load(most_recent_checkpoint / "metadata.ckpt")
         step = metadata["step"]
 
+    LOG_SCALING_FACTOR = 0.1
     while True:
         for batch in tqdm(train_dl):
+            step += 1
             imgs, tags = batch["img"], batch["tags"]
 
             loss = trainer(
@@ -128,18 +130,19 @@ def run():
                 unet_number=1,
                 max_batch_size=batch_size,
             )
+            trainer.update(unet_number=1)
 
-            wandb.log(
-                {
-                    "loss": loss,
-                    "step": step,
-                }, commit=commit()
-            )
+            if step % (50 * LOG_SCALING_FACTOR) == 0:
+                # Logging every step is too slow
+                wandb.log(
+                    {
+                        "loss": loss,
+                        "step": step,
+                    })
 
-            step += 1
 
             # checkpoint model & do sample run
-            if step % 5000 == 0:
+            if step % 5000 * LOG_SCALING_FACTOR == 0 and False:
                 print("Checkpointing ...")
                 save(run_id, trainer, {"step": step})
 
@@ -166,7 +169,8 @@ def run():
                     {
                         "loss_validation": sum(losses) / len(losses),
                         "step": step,
-                    }, commit=commit()
+                    }
+                    #}, commit=commit()
                 )
                 trainer.train()
 
