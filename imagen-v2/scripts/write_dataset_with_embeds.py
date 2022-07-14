@@ -16,6 +16,7 @@ from composer.datasets.streaming import StreamingDatasetWriter
 from torch.utils.data import DataLoader
 from torch.utils.data.dataset import Dataset
 from supersqlite import sqlite3
+from imagen_pytorch.t5 import t5_encode_text, DEFAULT_T5_NAME, get_encoded_dim
 
 Section("files", "inputs, outputs, etc.").params(
     imgs_dir=Param(
@@ -46,10 +47,6 @@ Section("logging", "when/where to log").params(
         default="./logs",
     ),
     steps=Param(int, "the # of steps between logging images", default=1_000),
-)
-
-Section("size", "how big should the dataset be").params(
-        max_batches=Param(int, "how many batches to include in the dataset", default = 0)
 )
 
 TARGET_DIM = 256
@@ -122,8 +119,7 @@ def save_tensor(t):
 @param("files.tags_db")
 @param("files.dataset_dir")
 @param("files.overwrite")
-@param("size.max_batches")
-def run(imgs_dir, tags_db, dataset_dir, overwrite, max_batches):
+def run(imgs_dir, tags_db, dataset_dir, overwrite):
     dataset_dir_path = Path(dataset_dir)
     dataset_dir_path.mkdir(exist_ok=True)
     try:
@@ -142,17 +138,11 @@ def run(imgs_dir, tags_db, dataset_dir, overwrite, max_batches):
     ds = ImageCaptionDataset(tags_db=tags_db, img_buckets_dir=imgs_dir)
     dl = DataLoader(ds, batch_size=1, shuffle=False, num_workers=12)
 
-    batches_processed = 0
-    FIELDS = ["img", "tags"]
+    FIELDS = ["img", "tags", "embeddings", "masks", "tokens"]
     with StreamingDatasetWriter(
         dataset_dir, FIELDS, shard_size_limit=1 << 24
     ) as writer:
-        # TODO: Fix tqdm for the small case
         for batch in tqdm(dl):
-            if max_batches > 0 and batches_processed >= max_batches:
-                break
-            batches_processed += 1
-
             img, tags = batch["img"], batch["tags"]
             img = img[0]
 
@@ -167,12 +157,30 @@ def run(imgs_dir, tags_db, dataset_dir, overwrite, max_batches):
             # Anything else will cause data drift (I think ???)
             img_bytes = save_tensor(img)
 
+            # TODO: Might not need to return masks:
+            embeds, masks = t5_encode_text(
+                # function expects an array of strings
+                tags,
+                name=DEFAULT_T5_NAME,
+                return_attn_mask=True,
+            )
+            assert embeds.shape[0] == 1 and masks.shape[0] == 1
+            n_tokens = embeds.shape[1]
+            embeds_bytes = save_tensor(embeds)
+            masks_bytes = save_tensor(masks)
+
             writer.write_sample(
                 {
                     "img": img_bytes,
+                    # TODO: We might not even need these, but the size
+                    # is neglible compared to the size of the embeddings
                     "tags": tags[0].encode("utf-8"),
+                    "embeddings": embeds_bytes,
+                    "masks": masks_bytes,
+                    "tokens": str(n_tokens).encode("utf-8"),
                 },
             )
+
 
 parser = argparse.ArgumentParser(description="Construct a streaming dataset")
 config = get_current_config()

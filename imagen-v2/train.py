@@ -1,7 +1,7 @@
 import os
 import argparse
 from pathlib import Path
-from random import random
+import random
 
 from tqdm import tqdm
 from imagen_pytorch import Imagen, BaseUnet64, ImagenTrainer
@@ -19,8 +19,11 @@ config = {
 batch_size = config["batch_size"]
 ds = ImageWithCaptions("./data/danbooru/artifacts/shards", shuffle=True, batch_size=batch_size)
 
-train_ds, val_ds = random_split(ds, [len(ds) - batch_size * 5, batch_size * 5])
-print(f"# images: {len(train_ds)}")
+train_sz = int(len(ds) * 0.98)
+val_sz = len(ds) - train_sz
+
+train_ds, val_ds = random_split(ds, [train_sz, val_sz])
+print(f"train: {len(train_ds)}, val: {len(val_ds)}")
 
 train_dl = DataLoader(
     train_ds,
@@ -30,12 +33,11 @@ train_dl = DataLoader(
     num_workers=12,
 )
 val_dl = DataLoader(val_ds, batch_size, shuffle=False, pin_memory=True,)
-train_dl_iter = iter(train_dl)
 
 def test_dataloader():
     print("Testing dataloader ...")
     i = 0
-    for batch in tqdm(train_dl_iter):
+    for batch in tqdm(train_dl):
         i += 1
 
 # Uncomment this if you want to see how long it takes to just run the dataloader
@@ -90,7 +92,12 @@ imagen = Imagen(
     auto_normalize_img=True,
 ).cuda()
 trainer = ImagenTrainer(imagen)
+trainer.add_valid_dataloader(val_dl)
 
+# By batching wandb syncing, we 2x training speed
+def commit():
+    should_commit = random.randint(0, 100) == 0
+    return should_commit
 
 def run():
     global step
@@ -112,7 +119,7 @@ def run():
         step = metadata["step"]
 
     while True:
-        for batch in tqdm(train_dl_iter):
+        for batch in tqdm(train_dl):
             imgs, tags = batch["img"], batch["tags"]
 
             loss = trainer(
@@ -126,62 +133,65 @@ def run():
                 {
                     "loss": loss,
                     "step": step,
-                }
+                }, commit=commit()
             )
 
             step += 1
 
             # checkpoint model & do sample run
-            if step % 999 == 0:
+            if step % 5000 == 0:
                 print("Checkpointing ...")
                 save(run_id, trainer, {"step": step})
 
-                last_batch = None
+                # Print non gc'd tensors
+                # for obj in gc.get_objects():
+                #     try:
+                #         if torch.is_tensor(obj) or (hasattr(obj, 'data') and torch.is_tensor(obj.data)):
+                #             print(type(obj), obj.size())
+                #     except:
+                #         pass
+
+                trainer.eval()
                 losses = []
-                for batch in val_dl:
-                    last_batch = batch
-
-                    # torch.nograd() doesn't work here for some reason
-                    loss = trainer(
-                        images=batch["img"],
-                        texts=batch["caption"],
-                        unet_number=1,
-                        max_batch_size=batch_size,
-                    )
-                    losses.append(loss)
-
+                with torch.no_grad():
+                    for batch in tqdm(val_dl):
+                        imgs, tags = batch["img"].cuda(), batch["tags"]
+                        loss = trainer.imagen(
+                            images=imgs,
+                            texts=tags,
+                            unet_number = 1,
+                        )
+                        losses.append(loss.item())
                 wandb.log(
                     {
                         "loss_validation": sum(losses) / len(losses),
                         "step": step,
-                    }
+                    }, commit=commit()
                 )
+                trainer.train()
 
                 # sample runs take a *long* time (~ 3 minutes)
-                if step % 9999 == 0:
-                    # sample run time
-                    N_SAMPLES = 3
-                    imgs = trainer.sample(
-                        last_batch["caption"][:N_SAMPLES], cond_scale=3.0
-                    )
+                # if step % 20 == 0:
+                #     # sample run time
+                #     N_SAMPLES = 3
+                #     imgs = trainer.sample(
+                #         sample_batch["tags"][:N_SAMPLES], cond_scale=3.0
+                #     )
 
-                    trips = [
-                        (
-                            ("prompt" + str(idx), last_batch["caption"][idx]),
-                            ("img" + str(idx), last_batch["img"][idx]),
-                            ("actual" + str(idx), imgs[idx]),
-                        )
-                        for idx in range(N_SAMPLES)
-                    ]
+                #     trips = [
+                #         (
+                #             ("prompt" + str(idx), sample_batch["tags"][idx]),
+                #             ("img" + str(idx), sample_batch["img"][idx]),
+                #             ("actual" + str(idx), imgs[idx]),
+                #         )
+                #         for idx in range(N_SAMPLES)
+                #     ]
 
-                    to_log = {}
-                    for pairs in trips:
-                        for (k, v) in pairs:
-                            to_log[k] = v
-                    wandb.log(to_log)
-
-                trainer.zero_grad()
-
+                #     to_log = {}
+                #     for pairs in trips:
+                #         for (k, v) in pairs:
+                #             to_log[k] = v
+                #     wandb.log(to_log)
 
 with wandb.init(
     project="Imagen", id=run_id, resume="must" if resuming else "never", config=config,

@@ -15,9 +15,9 @@ class ImageWithCaptions(StreamingDataset):
         decoders = {
             'img': load_tensor,
             'tags': lambda data: data.decode('utf-8'),
-            # 'embeddings': load_tensor,
-            # 'masks': load_tensor,
-            # 'tokens': lambda data: int(data),
+            'embeddings': load_tensor,
+            'masks': load_tensor,
+            'tokens': lambda data: int(data),
         }
         super().__init__(local=local, remote=None, shuffle=shuffle, decoders=decoders, batch_size=batch_size)
 
