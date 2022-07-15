@@ -50,7 +50,7 @@ Section("run", "run info").params(
 @param("data.batch_size")
 def construct_dataloaders(dataset_dir, log_dir, total_samples, val_percent, batch_size):
     # With Mosaic, I need to pass shuffle/batch_size to the *dataset* itself
-    ds = ImageWithCaptions(dataset_dir, shuffle=True, batch_size=batch_size)
+    ds = ImageWithCaptions(dataset_dir, shuffle=False, batch_size=batch_size)
     if total_samples:
         print(f"Using {total_samples} samples from the dataset")
         ds, _ = random_split(ds, [total_samples, len(ds) - total_samples])
@@ -227,7 +227,8 @@ def train(run_id, trainer, params, ctx, batch_size, validations_per_epoch, train
         epoch_step = 0
         for batch in tqdm(train_dl):
             ctx["step"] += 1
-            epoch_step += 1
+            # epoch_step += 1
+            epoch_step = ctx["step"]
 
             imgs, tags = batch["img"], batch["tags"]
             loss = trainer(
@@ -245,6 +246,9 @@ def train(run_id, trainer, params, ctx, batch_size, validations_per_epoch, train
                         "step": ctx["step"],
                     }
                 )
+
+            if ctx["step"] % 1000 == 0:
+                save_checkpoint(run_id, trainer, params, ctx)
 
             if val_dl and epoch_step % val_interval == 0:
                 print("Checkpointing ...")
