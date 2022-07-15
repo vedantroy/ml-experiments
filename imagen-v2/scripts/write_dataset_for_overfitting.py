@@ -18,7 +18,7 @@ Section("config", "configuration").params(
 def run(dataset_dir, repeat):
     init_dataset_dir()
     img_path = "./overfit.jpg"
-    caption = "1girl blush gift hair_ribbon looking_at_viewer object_hug pink_eyes pink_hair pleated_skirt ribbon school_uniform short_twintails skirt smile solo twintails"
+    caption = "sample_caption"
 
     caption = caption.encode("utf-8")
     cropped = center_crop_image(img_path, "sample_img", 0)
