@@ -106,7 +106,7 @@ def multiple_matrix():
             z_loop[i, k] = total
     assert (z_loop == z_ein).all()
 
-    # attention
+    # The 1st part of attention (queries & keys)
     q = np.array(
         (
             [
