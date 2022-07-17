@@ -180,17 +180,18 @@ class AttentionBlock(nn.Module):
         # Default `d_k`
         if d_k is None:
             d_k = n_channels
+        # For debugging
+        self.d_k = d_k
+        self.n_heads = n_heads
         # Normalization layer
         self.norm = nn.GroupNorm(n_groups, n_channels)
         # Projections for query, key and values
         self.projection = nn.Linear(n_channels, n_heads * d_k * 3)
+        assert self.projection.weight.shape == (n_heads * d_k * 3, n_channels)
         # Linear layer for final transformation
         self.output = nn.Linear(n_heads * d_k, n_channels)
         # Scale for dot-product attention
         self.scale = d_k ** -0.5
-        #
-        self.n_heads = n_heads
-        self.d_k = d_k
 
     def forward(self, x: torch.Tensor, t: Optional[torch.Tensor] = None):
         """
@@ -203,62 +204,46 @@ class AttentionBlock(nn.Module):
         # Get shape
         batch_size, n_channels, height, width = x.shape
         # Change `x` to shape `[batch_size, seq, n_channels]`
-        x = x.view(batch_size, n_channels, -1).permute(0, 2, 1)
-        # Get query, key, and values (concatenated) and shape it to `[batch_size, seq, n_heads, 3 * d_k]`
-        qkv = self.projection(x).view(batch_size, -1, self.n_heads, 3 * self.d_k)
-        # Split query, key, and values. Each of them will have shape `[batch_size, seq, n_heads, d_k]`
-        q, k, v = torch.chunk(qkv, 3, dim=-1)
-        # Calculate scaled dot-product $\frac{Q K^\top}{\sqrt{d_k}}$
-        attn = torch.einsum('bihd,bjhd->bijh', q, k) * self.scale
-        # Softmax along the sequence dimension $\underset{seq}{softmax}\Bigg(\frac{Q K^\top}{\sqrt{d_k}}\Bigg)$
-        attn = attn.softmax(dim=1)
-        # Multiply by values
-        res = torch.einsum('bijh,bjhd->bihd', attn, v)
-        # Reshape to `[batch_size, seq, n_heads * d_k]`
-        res = res.view(batch_size, -1, self.n_heads * self.d_k)
-        # Transform to `[batch_size, seq, n_channels]`
-        res = self.output(res)
-
-        # Add skip connection
-        res += x
-
-        # Change to shape `[batch_size, in_channels, height, width]`
-        res = res.permute(0, 2, 1).view(batch_size, n_channels, height, width)
-
-        #
-        return res
-
-    def _forward(self, x: torch.Tensor, t: Optional[torch.Tensor] = None):
-        """
-        * `x` has shape `[batch_size, in_channels, height, width]`
-        * `t` has shape `[batch_size, time_channels]`
-        """
-        # `t` is not used, but it's kept in the arguments because for the attention layer function signature
-        # to match with `ResidualBlock`.
-        _ = t
-        # Get shape
-        batch_size, n_channels, height, width = x.shape
-        # Change `x` to shape `[batch_size, seq, n_channels]`
         x = x.view(batch_size, n_channels, -1)
-        assert x.shape == (batch_size, n_channels, height * width)
+        seq = height * width
+        assert x.shape == (batch_size, n_channels, seq)
         x = x.permute(0, 2, 1)
-        assert x.shape == (batch_size, height * width, n_channels)
-        qkv = self.projection(x)
-        assert qkv.shape
+        assert x.shape == (batch_size, seq, n_channels)
         # Get query, key, and values (concatenated) and shape it to `[batch_size, seq, n_heads, 3 * d_k]`
-        qkv = x.view(batch_size, -1, self.n_heads, 3 * self.d_k)
+        qkv = self.projection(x)
+        assert qkv.shape == (batch_size, seq, self.n_heads * 3 * self.d_k)
+        qkv = qkv.view(batch_size, -1, self.n_heads, 3 * self.d_k)
+        assert qkv.shape == (batch_size, seq, self.n_heads, 3 * self.d_k)
         # Split query, key, and values. Each of them will have shape `[batch_size, seq, n_heads, d_k]`
         q, k, v = torch.chunk(qkv, 3, dim=-1)
+        assert q.shape == k.shape == v.shape
+        assert q.shape == (batch_size, seq, self.n_heads, self.d_k)
+
         # Calculate scaled dot-product $\frac{Q K^\top}{\sqrt{d_k}}$
         attn = torch.einsum('bihd,bjhd->bijh', q, k) * self.scale
+        assert attn.shape == (batch_size, seq, seq, self.n_heads)
         # Softmax along the sequence dimension $\underset{seq}{softmax}\Bigg(\frac{Q K^\top}{\sqrt{d_k}}\Bigg)$
         attn = attn.softmax(dim=1)
+        assert attn.shape == (batch_size, seq, seq, self.n_heads)
         # Multiply by values
+        # (Re-averaging the value vectors)
+        # Way to read this?
+        # - b = iterating over each batch
+        # - i = iterating over each row in the attention matrix
+        # - j = iterating over each column in the attention matrix
+        # - j (in the 2nd arg) is telling which value vector to index into
+        # - Since j is a non-free index, we take the dot product
+        #  (This is the part where we are re-averaging the value vectors)
+        # - h = Do this for each head
+        # - d = Do this for each index in the value vector
         res = torch.einsum('bijh,bjhd->bihd', attn, v)
+        assert res.shape == (batch_size, seq, self.n_heads, self.d_k)
         # Reshape to `[batch_size, seq, n_heads * d_k]`
         res = res.view(batch_size, -1, self.n_heads * self.d_k)
+        assert res.shape == (batch_size, seq, self.n_heads * self.d_k)
         # Transform to `[batch_size, seq, n_channels]`
         res = self.output(res)
+        assert res.shape == (batch_size, seq, n_channels)
 
         # Add skip connection
         res += x
@@ -266,9 +251,7 @@ class AttentionBlock(nn.Module):
         # Change to shape `[batch_size, in_channels, height, width]`
         res = res.permute(0, 2, 1).view(batch_size, n_channels, height, width)
 
-        #
         return res
-
 
 class DownBlock(nn.Module):
     """
