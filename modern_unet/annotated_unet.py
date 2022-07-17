@@ -6,6 +6,8 @@ from typing import Optional, Tuple, Union, List
 import torch
 from torch import nn
 
+from asserts import assert_no_change
+
 # A fancy activation function
 class Swish(nn.Module):
     """
@@ -30,13 +32,17 @@ class TimeEmbedding(nn.Module):
         self.n_channels = n_channels
         # First linear layer
         self.lin1 = nn.Linear(self.n_channels // 4, self.n_channels)
+        # nn.Linear calls F.linear, which does x(A^t) + b
+        assert self.lin1.weight.shape == (n_channels, n_channels // 4)
 
         # Activation
         self.act = Swish()
         # Second linear layer
         self.lin2 = nn.Linear(self.n_channels, self.n_channels)
+        assert self.lin2.weight.shape == (n_channels, n_channels)
 
     def forward(self, t: torch.Tensor):
+        assert t.shape == (1,)
         # Create sinusoidal position embeddings
         # [same as those from the transformer](../../transformers/positional_encoding.html)
         #
@@ -48,13 +54,23 @@ class TimeEmbedding(nn.Module):
         # where $d$ is `half_dim`
         half_dim = self.n_channels // 8
         emb = math.log(10_000) / (half_dim - 1)
-        emb = torch.exp(torch.arange(half_dim, device=t.device) * -emb)
-        emb = t[:, None] * emb[None, :]
+        i_s = torch.arange(half_dim, device=t.device)
+        assert i_s.shape == (half_dim,)
+        emb = torch.exp(i_s * -emb)
+        assert emb.shape == (half_dim,)
+        a = t[:, None]
+        b = emb[None, :]
+        assert a.shape == (1, 1)
+        assert b.shape == (1, half_dim)
+        emb = a * b
         emb = torch.cat((emb.sin(), emb.cos()), dim=1)
+        assert emb.shape == (1, self.n_channels // 4,)
 
         # Transform with the MLP
         emb = self.act(self.lin1(emb))
+        assert emb.shape == (1, self.n_channels,) 
         emb = self.lin2(emb)
+        assert emb.shape == (1, self.n_channels,) 
         return emb
 
 # Residual blocks include 'skip' connections
@@ -73,39 +89,76 @@ class ResidualBlock(nn.Module):
         * `n_groups` is the number of groups for [group normalization](../../normalization/group_norm/index.html)
         """
         super().__init__()
+        # For assertions
+        self.out_channels = out_channels
+        self.time_channels = time_channels
+
         # Group normalization and the first convolution layer
         self.norm1 = nn.GroupNorm(n_groups, in_channels)
         self.act1 = Swish()
         self.conv1 = nn.Conv2d(in_channels, out_channels, kernel_size=(3, 3), padding=(1, 1))
+        assert self.conv1.weight.shape == (out_channels, in_channels, 3, 3)
 
         # Group normalization and the second convolution layer
         self.norm2 = nn.GroupNorm(n_groups, out_channels)
         self.act2 = Swish()
         self.conv2 = nn.Conv2d(out_channels, out_channels, kernel_size=(3, 3), padding=(1, 1))
+        assert self.conv2.weight.shape == (out_channels, out_channels, 3, 3)
 
         # If the number of input channels is not equal to the number of output channels we have to
         # project the shortcut connection
         if in_channels != out_channels:
             self.shortcut = nn.Conv2d(in_channels, out_channels, kernel_size=(1, 1))
+            assert self.shortcut.weight.shape == (out_channels, in_channels, 1, 1)
         else:
             self.shortcut = nn.Identity()
 
         # Linear layer for time embeddings
         self.time_emb = nn.Linear(time_channels, out_channels)
+        assert self.time_emb.weight.shape == (out_channels, time_channels)
+        assert_no_change(time_channels, "time_channels")
 
     def forward(self, x: torch.Tensor, t: torch.Tensor):
         """
         * `x` has shape `[batch_size, in_channels, height, width]`
         * `t` has shape `[batch_size, time_channels]`
         """
+        # It is fine for `t` to have shape [batch_size, time_channels].
+        # At first I was confused b/c: shouldn't there only be 1 timestep embedding?
+        # But, (in a batch), the UNet can be fed multiple images, each with its own timestep embedding.
+
+        #print(x.shape[0], t.shape[0])
+        #assert x.shape[0] == t.shape[0]
+        batch_size, _, H, W = x.shape
+
         # First convolution layer
         h = self.conv1(self.act1(self.norm1(x)))
+        assert h.shape == (batch_size, self.out_channels, H, W)
+
+        time_emb = self.time_emb(t)
+        assert t.shape == (1, self.time_channels)
+        assert time_emb.shape == (1, self.out_channels)
+        time_emb = time_emb[:, :, None, None]
+        assert time_emb.shape == (1, self.out_channels, 1, 1)
+        # This looks like:
+        # [ [[a]], [[b]], [[c]], [[d]], [[e]], [[f]] ]
+        # when self.out_channels = 6
+
         # Add time embeddings
-        h += self.time_emb(t)[:, :, None, None]
+        # Each value in the time embedding is added to the HxW values of the corresponding channel in `h`
+        # The same time embedding is added to all the images in the batch
+        # THIS MIGHT BE A BUG, but it's fine as long as each image in the batch is at the SAME TIMESTEP
+        h += time_emb
+        # Original line:
+        # h += self.time_emb(t)[:, :, None, None]
+
         # Second convolution layer
         h = self.conv2(self.act2(self.norm2(h)))
+        assert h.shape == (batch_size, self.out_channels, H, W)
 
         # Add the shortcut connection and return
+        # The shortcut connection just adds input to the output of the residual block
+        # Which makes SGD easier?? (The neural network no longer needs to learn the identity function??)
         return h + self.shortcut(x)
 
 # Ahh yes, magical attention...
@@ -153,6 +206,47 @@ class AttentionBlock(nn.Module):
         x = x.view(batch_size, n_channels, -1).permute(0, 2, 1)
         # Get query, key, and values (concatenated) and shape it to `[batch_size, seq, n_heads, 3 * d_k]`
         qkv = self.projection(x).view(batch_size, -1, self.n_heads, 3 * self.d_k)
+        # Split query, key, and values. Each of them will have shape `[batch_size, seq, n_heads, d_k]`
+        q, k, v = torch.chunk(qkv, 3, dim=-1)
+        # Calculate scaled dot-product $\frac{Q K^\top}{\sqrt{d_k}}$
+        attn = torch.einsum('bihd,bjhd->bijh', q, k) * self.scale
+        # Softmax along the sequence dimension $\underset{seq}{softmax}\Bigg(\frac{Q K^\top}{\sqrt{d_k}}\Bigg)$
+        attn = attn.softmax(dim=1)
+        # Multiply by values
+        res = torch.einsum('bijh,bjhd->bihd', attn, v)
+        # Reshape to `[batch_size, seq, n_heads * d_k]`
+        res = res.view(batch_size, -1, self.n_heads * self.d_k)
+        # Transform to `[batch_size, seq, n_channels]`
+        res = self.output(res)
+
+        # Add skip connection
+        res += x
+
+        # Change to shape `[batch_size, in_channels, height, width]`
+        res = res.permute(0, 2, 1).view(batch_size, n_channels, height, width)
+
+        #
+        return res
+
+    def _forward(self, x: torch.Tensor, t: Optional[torch.Tensor] = None):
+        """
+        * `x` has shape `[batch_size, in_channels, height, width]`
+        * `t` has shape `[batch_size, time_channels]`
+        """
+        # `t` is not used, but it's kept in the arguments because for the attention layer function signature
+        # to match with `ResidualBlock`.
+        _ = t
+        # Get shape
+        batch_size, n_channels, height, width = x.shape
+        # Change `x` to shape `[batch_size, seq, n_channels]`
+        x = x.view(batch_size, n_channels, -1)
+        assert x.shape == (batch_size, n_channels, height * width)
+        x = x.permute(0, 2, 1)
+        assert x.shape == (batch_size, height * width, n_channels)
+        qkv = self.projection(x)
+        assert qkv.shape
+        # Get query, key, and values (concatenated) and shape it to `[batch_size, seq, n_heads, 3 * d_k]`
+        qkv = x.view(batch_size, -1, self.n_heads, 3 * self.d_k)
         # Split query, key, and values. Each of them will have shape `[batch_size, seq, n_heads, d_k]`
         q, k, v = torch.chunk(qkv, 3, dim=-1)
         # Calculate scaled dot-product $\frac{Q K^\top}{\sqrt{d_k}}$
@@ -307,7 +401,7 @@ class UNet(nn.Module):
             out_channels = in_channels * ch_mults[i]
             # Add `n_blocks`
             for _ in range(n_blocks):
-                down.append(DownBlock(in_channels, out_channels, n_channels * 4, is_attn[i]))
+                down.append(DownBlock(in_channels, out_channels, time_channels=n_channels * 4, has_attn=is_attn[i]))
                 in_channels = out_channels
             # Down sample at all resolutions except the last
             if i < n_resolutions - 1:
@@ -348,11 +442,13 @@ class UNet(nn.Module):
     def forward(self, x: torch.Tensor, t: torch.Tensor):
         """
         * `x` has shape `[batch_size, in_channels, height, width]`
-        * `t` has shape `[batch_size]`
+        * `t` has shape `[1,]`
         """
+        assert t.shape == (1,)
 
         # Get time-step embeddings
         t = self.time_emb(t)
+
 
         # Get image projection
         x = self.image_proj(x)

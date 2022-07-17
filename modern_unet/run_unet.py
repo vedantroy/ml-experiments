@@ -16,4 +16,4 @@ unet = UNet()
 model_output = unet(x, t)
 
 # The output shape matches the input.
-model_output.shape
+print(model_output.shape)
