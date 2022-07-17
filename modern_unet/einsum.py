@@ -106,11 +106,6 @@ def multiple_matrix():
             z_loop[i, k] = total
     assert (z_loop == z_ein).all()
 
-    # do these 3 examples
-    # print(np.einsum('ij,jk->ijk', x, y))
-    # print(np.einsum('ab,cd->abcd', x, y))
-    # print(np.einsum('ab,cd->ad', x, y))
-
     # attention
     q = np.array(
         (
@@ -171,19 +166,36 @@ def multiple_matrix():
 
     assert (attn_loop == attn).all()
 
-    # assert z.shape == (2, 3)
-    # assert (z == np.array([[3, 3, 3], [6, 6, 6]])).all()
 
-    # z = np.einsum("i,j->ji", x, y)
-    # assert z.shape == (3, 2)
-    # assert (z == np.array([[3, 6], [3, 6], [3, 6]])).all()
+    x = np.array([[1, 2], [3, 4], [5, 6]])
+    A, B = x.shape
+    y = np.array([[5, 6, 7, 8], [9, 10, 11, 12]])
+    C, D = y.shape
+    z_ein = np.einsum('ab,cd->ad', x, y)
 
-    # z = np.einsum("i,j->i", x, y)
-    # assert (z == np.array([9, 18])).all()
+    z_loop = np.empty((A, D))
+    for a in range(A):
+        for d in range(D):
+            total = 0
+            for b in range(B):
+                for c in range(C):
+                    total += x[a, b] * y[c, d]
+            z_loop[a, d] = total
 
-    # z = np.einsum("i,j->j", x, y)
-    # assert (z == np.array([9, 9, 9])).all()
+    assert (z_loop == z_ein).all()
 
+    # Now, what does this print?
+    # We know it's doing something for each row of x and each column of y
+    # For each row @ the a-th idx of x and each column @ the d-th idx of y.transpose
+    # For each value at the b-th idx of the row
+    #   For each value at the c-th idx of the column
+    #      muliply them together and add to the total
+
+    assert (z_loop == np.array([
+        [1 * 5 + 1 * 9 + 2 * 5 + 2 * 9, 1 * 6 + 1 * 10 + 2 * 6 + 2 * 10, 1 * 7 + 1 * 11 + 2 * 7 + 2 * 11, 1 * 8 + 1 * 12 + 2 * 8 + 2 * 12],
+        [3 * 5 + 3 * 9 + 4 * 5 + 4 * 9, 3 * 6 + 3 * 10 + 4 * 6 + 4 * 10, 3 * 7 + 3 * 11 + 4 * 7 + 4 * 11, 3 * 8 + 3 * 12 + 4 * 8 + 4 * 12],
+        [5 * 5 + 5 * 9 + 6 * 5 + 6 * 9, 5 * 6 + 5 * 10 + 6 * 6 + 6 * 10, 5 * 7 + 5 * 11 + 6 * 7 + 6 * 11, 5 * 8 + 5 * 12 + 6 * 8 + 6 * 12],
+    ])).all()
 
 single_matrix()
 multiple_matrix()

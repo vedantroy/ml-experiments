@@ -121,14 +121,13 @@ class ResidualBlock(nn.Module):
     def forward(self, x: torch.Tensor, t: torch.Tensor):
         """
         * `x` has shape `[batch_size, in_channels, height, width]`
-        * `t` has shape `[batch_size, time_channels]`
+        Incorrect => * `t` has shape `[batch_size, time_channels]`
         """
+        # THE BELOW COMMENT IS OUTDATED
         # It is fine for `t` to have shape [batch_size, time_channels].
         # At first I was confused b/c: shouldn't there only be 1 timestep embedding?
         # But, (in a batch), the UNet can be fed multiple images, each with its own timestep embedding.
 
-        #print(x.shape[0], t.shape[0])
-        #assert x.shape[0] == t.shape[0]
         batch_size, _, H, W = x.shape
 
         # First convolution layer
