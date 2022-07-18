@@ -43,7 +43,7 @@ Section("data", "how to process data").params(
 
 Section("run", "run info").params(
     run_id=Param(str, "an existing run id to use", default=""),
-    checkpoint_interval=Param(int, "how many steps between checkpoints", default=1000),
+    checkpoint_interval=Param(int, "how many batches between checkpoints", default=100_000),
 )
 
 
@@ -150,8 +150,8 @@ def load_checkpoint(checkpoint_dir, run_id, trainer):
 
 @param("files.checkpoint_dir", "checkpoint_dir")
 def save_checkpoint(run_id, trainer, params, context, checkpoint_dir):
-    steps = context["step"]
-    path = Path(checkpoint_dir) / run_id / str(steps)
+    imgs_seen = context["total_imgs"]
+    path = Path(checkpoint_dir) / run_id / str(imgs_seen)
     path.mkdir(parents=True)
 
     trainer_ckpt = path / "trainer.ckpt"
@@ -178,7 +178,7 @@ def create_trainer(params):
     )
     device = torch.device("cuda:0")
     cuda_imagen = imagen.to(device)
-    trainer = ImagenTrainer(cuda_imagen, fp16=False)
+    trainer = ImagenTrainer(cuda_imagen, fp16=params["fp16"])
     return trainer
 
 @param("run.run_id")
@@ -186,9 +186,11 @@ def run(run_id):
     run_id = run_id if run_id != "" else None
     params = {
         "dim": 256,
+        "fp16": False,
     }
     ctx = {
-        "step": 0,
+        "batch": 0,
+        "total_imgs": 0,
     }
     checkpoint_path  = get_checkpoint_path()
     assert bool(run_id) == bool(checkpoint_path)
@@ -234,7 +236,8 @@ def train(run_id, trainer, params, ctx, batch_size, validations_per_epoch, train
     while True:
         epoch_step = 0
         for batch in tqdm(train_dl):
-            ctx["step"] += 1
+            ctx["total_imgs"] += batch_size
+            ctx["batch"] += 1
             epoch_step += 1
 
             imgs, tags = batch["img"], batch["tags"]
@@ -252,11 +255,10 @@ def train(run_id, trainer, params, ctx, batch_size, validations_per_epoch, train
                 wandb.log(
                     {
                         "loss": loss,
-                        "step": ctx["step"],
-                    }
+                    }, step=ctx["total_imgs"]
                 )
 
-            if ctx["step"] > 0 and ctx["step"] % checkpoint_interval == 0:
+            if ctx["batch"] > 0 and ctx["batch"] % checkpoint_interval == 0:
                 save_checkpoint(run_id, trainer, params, ctx)
 
             if val_dl and epoch_step % val_interval == 0:
@@ -283,8 +285,7 @@ def train(run_id, trainer, params, ctx, batch_size, validations_per_epoch, train
                 wandb.log(
                     {
                         "loss_validation": sum(losses) / len(losses),
-                        "step": ctx["step"],
-                    }
+                    }, step=ctx["total_imgs"]
                 )
                 trainer.train()
 
