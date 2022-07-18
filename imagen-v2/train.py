@@ -27,7 +27,7 @@ Section("files", "inputs, outputs, etc.").params(
 
 Section("logging", "where/when/how to log").params(
     train_log_interval=Param(
-        int, "how many steps between logging training metrics", default=50
+        int, "how many batches between logging training metrics", default=50
     ),
     # validation loss is always logged
 )
@@ -251,7 +251,7 @@ def train(run_id, trainer, params, ctx, batch_size, validations_per_epoch, train
             )
             trainer.update(unet_number=1)
 
-            if train_log_interval > 0 and ctx["step"] % train_log_interval == 0:
+            if train_log_interval > 0 and ctx["batch"] % train_log_interval == 0:
                 wandb.log(
                     {
                         "loss": loss,
