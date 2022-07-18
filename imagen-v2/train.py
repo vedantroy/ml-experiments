@@ -84,7 +84,7 @@ def construct_dataloaders(dataset_dir, log_dir, total_samples, val_percent, batc
         batch_size=batch_size,
         # shuffling is done in the dataset
         shuffle=False,
-        num_workers=12
+        num_workers=8
     )
 
     val_dl = None
@@ -94,7 +94,7 @@ def construct_dataloaders(dataset_dir, log_dir, total_samples, val_percent, batc
             batch_size=batch_size,
             # We literally cannot turn off shuffling for validation :((
             shuffle=False,
-            num_workers=12
+            num_workers=8
         )
 
     return train_dl, val_dl
@@ -178,7 +178,7 @@ def create_trainer(params):
     )
     device = torch.device("cuda:0")
     cuda_imagen = imagen.to(device)
-    trainer = ImagenTrainer(cuda_imagen)
+    trainer = ImagenTrainer(cuda_imagen, fp16=False)
     return trainer
 
 @param("run.run_id")
@@ -273,6 +273,7 @@ def train(run_id, trainer, params, ctx, batch_size, validations_per_epoch, train
                 with torch.no_grad():
                     for batch in tqdm(val_dl):
                         imgs, tags = batch["img"].cuda(), batch["tags"]
+                        imgs = imgs.float() / 255
                         loss = trainer(
                             images=imgs,
                             texts=tags,
