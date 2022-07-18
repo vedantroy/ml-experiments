@@ -12,6 +12,11 @@ Section("run", "run configuration").params(
     run_id=Param(
         str,
         "the run id",
+    ),
+    latest=Param(
+        bool,
+        "whether to only generate for the latest run",
+        default=False
     )
 )
 
@@ -36,16 +41,17 @@ def generate_for_checkpoint(checkpoint):
     print("Trainer loaded")
     trainer.eval()
 
-    sample = "1girl blush gift hair_ribbon looking_at_viewer object_hug pink_eyes pink_hair pleated_skirt ribbon school_uniform short_twintails skirt smile solo twintails"
-    imgs = trainer.sample(texts=[sample], cond_scale=3.0, stop_at_unet_number=1)
+    # sample = "sample_caption"
+    imgs = trainer.sample(texts=[sample], cond_scale=10., stop_at_unet_number=1)
     i = 0
     for img in imgs:
         pil = T.to_pil_image(img.cpu(), mode="RGB")
-        pil.save(f"img_{step}_{i}.png", "PNG")
+        pil.save(f"./samples/img_{step}_{i}.png", "PNG")
         i += 1
 
 @param("run.run_id")
-def run(run_id):
+@param("run.latest")
+def run(run_id, latest):
     print(f"Doing inference on run: {run_id}")
 
     checkpoints = list(Path(f"./runs/{run_id}").glob("*"))
@@ -55,9 +61,11 @@ def run(run_id):
         return int(dir_name)
 
     checkpoints.sort(key=get_step)
-
-    for checkpoint in checkpoints:
-        generate_for_checkpoint(checkpoint)
+    if latest:
+        generate_for_checkpoint(checkpoints[-1])
+    else:
+        for checkpoint in checkpoints:
+            generate_for_checkpoint(checkpoint)
 
 parser = argparse.ArgumentParser(description="Generate samples for a model")
 config = get_current_config()

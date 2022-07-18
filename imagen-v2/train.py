@@ -3,10 +3,13 @@ import argparse
 from pathlib import Path
 import shutil
 
+import torchvision.transforms.functional as T
+
 from tqdm import tqdm
 from imagen_pytorch import Imagen, BaseUnet64, ImagenTrainer
 from torch.utils.data import DataLoader, random_split
 import torch
+from torch import nn
 import torchvision
 import wandb
 from fastargs import Param, Section
@@ -167,12 +170,16 @@ def create_trainer(params):
     unet1 = BaseUnet64(
         dim=params["dim"],
     )
+    print("making imagen")
     imagen = Imagen(
         unets=(unet1,),
         image_sizes=(64,),
         auto_normalize_img=True,
-    ).cuda()
-    return ImagenTrainer(imagen)
+    )
+    device = torch.device("cuda:0")
+    cuda_imagen = imagen.to(device)
+    trainer = ImagenTrainer(cuda_imagen)
+    return trainer
 
 @param("run.run_id")
 def run(run_id):
@@ -193,10 +200,12 @@ def run(run_id):
     print("Params: ", params)
     print("Context: ", ctx)
 
+    print("Loading wandb")
     trainer = create_trainer(params)
     if checkpoint_path:
         trainer.load(checkpoint_path / "trainer.ckpt")
 
+    print("Loading wandb")
     resuming = checkpoint_path is not None
     run_id = run_id or wandb.util.generate_id()
 
@@ -231,6 +240,8 @@ def train(run_id, trainer, params, ctx, batch_size, validations_per_epoch, train
             epoch_step = ctx["step"]
 
             imgs, tags = batch["img"], batch["tags"]
+            imgs = imgs.float() / 255
+
             loss = trainer(
                 images=imgs,
                 texts=tags,
