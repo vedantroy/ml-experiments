@@ -1,7 +1,7 @@
 import os
 import argparse
 from pathlib import Path
-import shutil
+import json
 
 import torchvision.transforms.functional as T
 
@@ -38,12 +38,14 @@ Section("data", "how to process data").params(
     ),
     validations_per_epoch=Param(int, "how many validations to do per epoch", default=2),
     val_percent=Param(int, "percentage of samples to use for validation", default=2),
-    batch_size=Param(int, "how many samples to use in each batch", default=1),
+    max_batch_size=Param(int, "how many samples to use in each batch", default=1),
+    gradient_update_size=Param(int, "how many samples to process before updating the gradient", default=1),
 )
 
 Section("run", "run info").params(
     run_id=Param(str, "an existing run id to use", default=""),
     checkpoint_interval=Param(int, "how many batches between checkpoints", default=100_000),
+    model_params=Param(str, "json file containing the initial parameters for the run", default="")
 )
 
 
@@ -51,10 +53,14 @@ Section("run", "run info").params(
 @param("files.log_dir")
 @param("data.total_samples")
 @param("data.val_percent")
-@param("data.batch_size")
-def construct_dataloaders(dataset_dir, log_dir, total_samples, val_percent, batch_size):
+@param("data.gradient_update_size")
+@param("data.max_batch_size")
+def construct_dataloaders(dataset_dir, log_dir, total_samples, val_percent, gradient_update_size, max_batch_size):
+    # I believe this ensures maximum perf b/c we always pass in the max_batch_size to the model
+    assert gradient_update_size % max_batch_size == 0,  f"max_batch_size must be divisible by gradient_update_size"
+
     # With Mosaic, I need to pass shuffle/batch_size to the *dataset* itself
-    ds = ImageWithCaptions(dataset_dir, shuffle=False, batch_size=batch_size)
+    ds = ImageWithCaptions(dataset_dir, shuffle=False, batch_size=gradient_update_size)
     if total_samples:
         print(f"Using {total_samples} samples from the dataset")
         ds, _ = random_split(ds, [total_samples, len(ds) - total_samples])
@@ -81,7 +87,7 @@ def construct_dataloaders(dataset_dir, log_dir, total_samples, val_percent, batc
 
     train_dl = DataLoader(
         train_ds,
-        batch_size=batch_size,
+        batch_size=gradient_update_size,
         # shuffling is done in the dataset
         shuffle=False,
         num_workers=8
@@ -91,7 +97,9 @@ def construct_dataloaders(dataset_dir, log_dir, total_samples, val_percent, batc
     if val_ds:
         val_dl = DataLoader(
             val_ds,
-            batch_size=batch_size,
+            # when validating, we aren't updating gradients
+            # so we just process as many batches as we can fit in memory
+            batch_size=max_batch_size,
             # We literally cannot turn off shuffling for validation :((
             shuffle=False,
             num_workers=8
@@ -168,30 +176,35 @@ def save_checkpoint(run_id, trainer, params, context, checkpoint_dir):
         wandb.save(str(params_ckpt))
 
 def create_trainer(params):
-    unet1 = BaseUnet64(
-        dim=params["dim"],
-        cosine_sim_attn=params["cosine_sim_attn"],
-    )
+    unets = []
+    image_sizes = []
+    for unet in params["unets"]:
+        typ, img_size = unet["type"] , unet["image_size"]
+        image_sizes.append(img_size)
+        if typ == "BaseUnet64":
+            unets.append(BaseUnet64(**unet["params"]))
+        else:
+            raise Exception(f"Unknown unet: {type}")
+
     imagen = Imagen(
-        unets=(unet1,),
-        image_sizes=(64,),
-        auto_normalize_img=True,
+        unets=unets,
+        image_sizes=image_sizes,
+        **params["imagen"],
     )
     device = torch.device("cuda:0")
     cuda_imagen = imagen.to(device)
-    trainer = ImagenTrainer(cuda_imagen, fp16=params["fp16"], max_grad_norm=params["max_grad_norm"])
+    trainer = ImagenTrainer(cuda_imagen, **params["trainer"])
     return trainer
 
 @param("run.run_id")
-def run(run_id):
+@param("run.model_params", "model_params_file")
+def run(run_id, model_params_file):
     run_id = run_id if run_id != "" else None
-    params = {
-        "dim": 256,
-        "fp16": True,
-        "cosine_sim_attn": False,
-        "max_grad_norm": None,
-        "imagen_pytorch_version": '1.1.2',
-    }
+    params = None
+    if not run_id:
+        with open(model_params_file, "r") as f:
+            params = json.load(f)
+
     ctx = {
         "batch": 0,
         "total_imgs": 0,
@@ -225,11 +238,12 @@ def run(run_id):
             print("Interrupted ...")
             save_checkpoint(run_id, trainer, params, ctx)
 
-@param("data.batch_size", "batch_size")
+@param("data.max_batch_size", "max_batch_size")
+@param("data.gradient_update_size", "gradient_update_size")
 @param("data.validations_per_epoch", "validations_per_epoch")
 @param("logging.train_log_interval", "train_log_interval")
 @param("run.checkpoint_interval", "checkpoint_interval")
-def train(run_id, trainer, params, ctx, batch_size, validations_per_epoch, train_log_interval, checkpoint_interval):
+def train(run_id, trainer, params, ctx, max_batch_size, gradient_update_size, validations_per_epoch, train_log_interval, checkpoint_interval):
     train_dl, val_dl = construct_dataloaders()
     trainer.train()
 
@@ -240,7 +254,7 @@ def train(run_id, trainer, params, ctx, batch_size, validations_per_epoch, train
     while True:
         epoch_step = 0
         for batch in tqdm(train_dl):
-            ctx["total_imgs"] += batch_size
+            ctx["total_imgs"] += gradient_update_size
             ctx["batch"] += 1
             epoch_step += 1
 
@@ -251,7 +265,7 @@ def train(run_id, trainer, params, ctx, batch_size, validations_per_epoch, train
                 images=imgs,
                 texts=tags,
                 unet_number=1,
-                max_batch_size=12,
+                max_batch_size=max_batch_size,
             )
             trainer.update(unet_number=1)
 

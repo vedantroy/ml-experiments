@@ -1,0 +1,19 @@
+{
+    "unets": [
+        {
+            "type": "BaseUnet64",
+            "image_size": 64,
+            "params": {
+                "dim": 256,
+                "cosine_sim_attn": true
+            }
+        }
+    ],
+    "imagen": {
+        "auto_normalize_img": true
+    },
+    "trainer": {
+        "fp16": true
+    },
+    "imagen_pytorch_version": "1.1.2"
+}
