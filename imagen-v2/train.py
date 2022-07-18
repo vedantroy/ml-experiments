@@ -170,6 +170,7 @@ def save_checkpoint(run_id, trainer, params, context, checkpoint_dir):
 def create_trainer(params):
     unet1 = BaseUnet64(
         dim=params["dim"],
+        cosine_sim_attn=params["cosine_sim_attn"],
     )
     imagen = Imagen(
         unets=(unet1,),
@@ -178,7 +179,7 @@ def create_trainer(params):
     )
     device = torch.device("cuda:0")
     cuda_imagen = imagen.to(device)
-    trainer = ImagenTrainer(cuda_imagen, fp16=params["fp16"])
+    trainer = ImagenTrainer(cuda_imagen, fp16=params["fp16"], max_grad_norm=params["max_grad_norm"])
     return trainer
 
 @param("run.run_id")
@@ -186,7 +187,10 @@ def run(run_id):
     run_id = run_id if run_id != "" else None
     params = {
         "dim": 256,
-        "fp16": False,
+        "fp16": True,
+        "cosine_sim_attn": False,
+        "max_grad_norm": 0.1,
+        "imagen_pytorch_version": '1.1.2',
     }
     ctx = {
         "batch": 0,
@@ -241,7 +245,7 @@ def train(run_id, trainer, params, ctx, batch_size, validations_per_epoch, train
             epoch_step += 1
 
             imgs, tags = batch["img"], batch["tags"]
-            imgs = imgs.float() / 255
+            # imgs = imgs.float() / 255
 
             loss = trainer(
                 images=imgs,
@@ -275,7 +279,7 @@ def train(run_id, trainer, params, ctx, batch_size, validations_per_epoch, train
                 with torch.no_grad():
                     for batch in tqdm(val_dl):
                         imgs, tags = batch["img"].cuda(), batch["tags"]
-                        imgs = imgs.float() / 255
+                        # imgs = imgs.float() / 255
                         loss = trainer(
                             images=imgs,
                             texts=tags,
