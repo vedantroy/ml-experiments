@@ -171,7 +171,6 @@ def create_trainer(params):
     unet1 = BaseUnet64(
         dim=params["dim"],
     )
-    print("making imagen")
     imagen = Imagen(
         unets=(unet1,),
         image_sizes=(64,),
@@ -201,12 +200,10 @@ def run(run_id):
     print("Params: ", params)
     print("Context: ", ctx)
 
-    print("Loading wandb")
     trainer = create_trainer(params)
     if checkpoint_path:
         trainer.load(checkpoint_path / "trainer.ckpt")
 
-    print("Loading wandb")
     resuming = checkpoint_path is not None
     run_id = run_id or wandb.util.generate_id()
 
@@ -230,7 +227,7 @@ def train(run_id, trainer, params, ctx, batch_size, validations_per_epoch, train
     train_dl, val_dl = construct_dataloaders()
     trainer.train()
 
-    val_interval = validations_per_epoch > 0 
+    val_interval = len(train_dl) // validations_per_epoch
     if val_dl:
         print("Validating every: ", val_interval)
 
@@ -276,12 +273,12 @@ def train(run_id, trainer, params, ctx, batch_size, validations_per_epoch, train
                 with torch.no_grad():
                     for batch in tqdm(val_dl):
                         imgs, tags = batch["img"].cuda(), batch["tags"]
-                        loss = trainer.imagen(
+                        loss = trainer(
                             images=imgs,
                             texts=tags,
                             unet_number=1,
                         )
-                        losses.append(loss.item())
+                        losses.append(loss)
                 wandb.log(
                     {
                         "loss_validation": sum(losses) / len(losses),
