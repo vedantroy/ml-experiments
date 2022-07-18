@@ -1,6 +1,7 @@
 import os
 import argparse
 from pathlib import Path
+import math
 import json
 
 import torchvision.transforms.functional as T
@@ -48,6 +49,8 @@ Section("run", "run info").params(
     model_params=Param(str, "json file containing the initial parameters for the run", default="")
 )
 
+class NaNLoss(Exception):
+        pass
 
 @param("files.dataset_dir")
 @param("files.log_dir")
@@ -237,6 +240,10 @@ def run(run_id, model_params_file):
         except KeyboardInterrupt as e:
             print("Interrupted ...")
             save_checkpoint(run_id, trainer, params, ctx)
+        except NaNLoss as e:
+            print("Detected NaNLoss...")
+            save_checkpoint(run_id, trainer, params, ctx)
+
 
 @param("data.max_batch_size", "max_batch_size")
 @param("data.gradient_update_size", "gradient_update_size")
@@ -259,6 +266,7 @@ def train(run_id, trainer, params, ctx, max_batch_size, gradient_update_size, va
             epoch_step += 1
 
             imgs, tags = batch["img"], batch["tags"]
+            print(f"imgs_shape={imgs.shape}, max_batch_size={max_batch_size}")
             # imgs = imgs.float() / 255
 
             loss = trainer(
@@ -267,6 +275,11 @@ def train(run_id, trainer, params, ctx, max_batch_size, gradient_update_size, va
                 unet_number=1,
                 max_batch_size=max_batch_size,
             )
+
+            print(loss)
+            if math.isnan(loss):
+                raise NaNLoss()
+
             trainer.update(unet_number=1)
 
             if train_log_interval > 0 and ctx["batch"] % train_log_interval == 0:
