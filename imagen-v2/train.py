@@ -43,6 +43,7 @@ Section("data", "how to process data").params(
 
 Section("run", "run info").params(
     run_id=Param(str, "an existing run id to use", default=""),
+    checkpoint_interval=Param(int, "how many steps between checkpoints", default=1000),
 )
 
 
@@ -224,11 +225,12 @@ def run(run_id):
 @param("data.batch_size", "batch_size")
 @param("data.validations_per_epoch", "validations_per_epoch")
 @param("logging.train_log_interval", "train_log_interval")
-def train(run_id, trainer, params, ctx, batch_size, validations_per_epoch, train_log_interval):
+@param("run.checkpoint_interval", "checkpoint_interval")
+def train(run_id, trainer, params, ctx, batch_size, validations_per_epoch, train_log_interval, checkpoint_interval):
     train_dl, val_dl = construct_dataloaders()
     trainer.train()
 
-    val_interval = len(train_dl) // validations_per_epoch
+    val_interval = validations_per_epoch > 0 
     if val_dl:
         print("Validating every: ", val_interval)
 
@@ -236,8 +238,7 @@ def train(run_id, trainer, params, ctx, batch_size, validations_per_epoch, train
         epoch_step = 0
         for batch in tqdm(train_dl):
             ctx["step"] += 1
-            # epoch_step += 1
-            epoch_step = ctx["step"]
+            epoch_step += 1
 
             imgs, tags = batch["img"], batch["tags"]
             imgs = imgs.float() / 255
@@ -250,7 +251,7 @@ def train(run_id, trainer, params, ctx, batch_size, validations_per_epoch, train
             )
             trainer.update(unet_number=1)
 
-            if train_log_interval > 0 and epoch_step % train_log_interval == 0:
+            if train_log_interval > 0 and ctx["step"] % train_log_interval == 0:
                 wandb.log(
                     {
                         "loss": loss,
@@ -258,13 +259,10 @@ def train(run_id, trainer, params, ctx, batch_size, validations_per_epoch, train
                     }
                 )
 
-            if ctx["step"] % 1000 == 0:
+            if ctx["step"] > 0 and ctx["step"] % checkpoint_interval == 0:
                 save_checkpoint(run_id, trainer, params, ctx)
 
             if val_dl and epoch_step % val_interval == 0:
-                print("Checkpointing ...")
-                save_checkpoint(run_id, trainer, params, ctx)
-
                 # Print non gc'd tensors
                 # for obj in gc.get_objects():
                 #     try:
