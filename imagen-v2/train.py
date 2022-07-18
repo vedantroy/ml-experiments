@@ -189,7 +189,7 @@ def run(run_id):
         "dim": 256,
         "fp16": True,
         "cosine_sim_attn": False,
-        "max_grad_norm": 0.1,
+        "max_grad_norm": None,
         "imagen_pytorch_version": '1.1.2',
     }
     ctx = {
@@ -251,7 +251,7 @@ def train(run_id, trainer, params, ctx, batch_size, validations_per_epoch, train
                 images=imgs,
                 texts=tags,
                 unet_number=1,
-                max_batch_size=batch_size,
+                max_batch_size=12,
             )
             trainer.update(unet_number=1)
 
