@@ -3,6 +3,7 @@ import argparse
 from pathlib import Path
 import math
 import json
+import pkg_resources
 
 import torchvision.transforms.functional as T
 
@@ -204,9 +205,11 @@ def create_trainer(params):
 def run(run_id, model_params_file):
     run_id = run_id if run_id != "" else None
     params = None
+    imagen_pytorch_version = pkg_resources.get_distribution("imagen_pytorch").version
     if not run_id:
         with open(model_params_file, "r") as f:
             params = json.load(f)
+            params['imagen_pytorch_version'] = imagen_pytorch_version
 
     ctx = {
         "batch": 0,
@@ -218,6 +221,7 @@ def run(run_id, model_params_file):
     if checkpoint_path:
         print(f"Loading checkpoint: {checkpoint_path}")
         params, ctx = load_checkpoint_params_and_ctx(checkpoint_path)
+        assert params['imagen_pytorch_version'] == imagen_pytorch_version
 
     print("Params: ", params)
     print("Context: ", ctx)
