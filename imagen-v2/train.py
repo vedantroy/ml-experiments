@@ -18,6 +18,7 @@ from fastargs import Param, Section
 from fastargs.decorators import param, get_current_config
 
 from streaming_dataset import ImageWithCaptions
+from model_loader import create_trainer, get_checkpoint_paths, load_checkpoint_params_and_ctx
 
 Section("files", "inputs, outputs, etc.").params(
     dataset_dir=Param(
@@ -111,55 +112,6 @@ def construct_dataloaders(dataset_dir, log_dir, total_samples, val_percent, grad
 
     return train_dl, val_dl
 
-@param("files.checkpoint_dir")
-@param("run.run_id")
-def get_checkpoint_path(checkpoint_dir, run_id):
-    if not run_id:
-        return None
-
-    print("Checkpoint dir: ", checkpoint_dir)
-    checkpoint_dir = Path(checkpoint_dir)
-    assert checkpoint_dir.exists(), f"Checkpoint dir: {checkpoint_dir} does not exist"
-
-    print(f"Loading state for run id: {run_id}")
-    checkpoints = list((checkpoint_dir / run_id).glob("*"))
-
-    def get_step(p):
-        dir_name = str(p).split("/")[-1]
-        return int(dir_name)
-
-    checkpoints.sort(key=get_step)
-    most_recent_checkpoint = checkpoints[-1]
-    return most_recent_checkpoint
-
-def load_checkpoint_params_and_ctx(checkpoint_path):
-    params = torch.load(checkpoint_path / "params.ckpt")
-    ctx = torch.load(checkpoint_path / "context.ckpt")
-    return params, ctx
-
-@param("files.checkpoint_dir", "run.run_id")
-def load_checkpoint(checkpoint_dir, run_id, trainer):
-        print("Checkpoint dir: ", checkpoint_dir)
-
-        checkpoint_dir = Path(checkpoint_dir)
-        assert checkpoint_dir.exists(), f"Checkpoint dir: {checkpoint_dir} does not exist"
-
-        print(f"Loading state for run id: {run_id}")
-        checkpoints = list((checkpoint_dir / run_id).glob("*"))
-
-        def get_step(p):
-            dir_name = str(p).split("/")[-1]
-            return int(dir_name)
-
-        checkpoints.sort(key=get_step)
-        most_recent_checkpoint = checkpoints[-1]
-        print(f"Resuming from checkpoint: {most_recent_checkpoint}")
-
-        trainer.load(most_recent_checkpoint / "trainer.ckpt")
-        params = torch.load(most_recent_checkpoint / "params.ckpt")
-        ctx = torch.load(most_recent_checkpoint / "context.ckpt")
-        return params, ctx
-
 @param("files.checkpoint_dir", "checkpoint_dir")
 def save_checkpoint(run_id, trainer, params, context, checkpoint_dir):
     imgs_seen = context["total_imgs"]
@@ -179,30 +131,10 @@ def save_checkpoint(run_id, trainer, params, context, checkpoint_dir):
         wandb.save(str(ctx_ckpt))
         wandb.save(str(params_ckpt))
 
-def create_trainer(params):
-    unets = []
-    image_sizes = []
-    for unet in params["unets"]:
-        typ, img_size = unet["type"] , unet["image_size"]
-        image_sizes.append(img_size)
-        if typ == "BaseUnet64":
-            unets.append(BaseUnet64(**unet["params"]))
-        else:
-            raise Exception(f"Unknown unet: {type}")
-
-    imagen = Imagen(
-        unets=unets,
-        image_sizes=image_sizes,
-        **params["imagen"],
-    )
-    device = torch.device("cuda:0")
-    cuda_imagen = imagen.to(device)
-    trainer = ImagenTrainer(cuda_imagen, **params["trainer"])
-    return trainer
-
 @param("run.run_id")
 @param("run.model_params", "model_params_file")
-def run(run_id, model_params_file):
+@param("files.checkpoint_dir", "checkpoint_dir")
+def run(run_id, model_params_file, checkpoint_dir):
     run_id = run_id if run_id != "" else None
     params = None
     imagen_pytorch_version = pkg_resources.get_distribution("imagen_pytorch").version
@@ -215,8 +147,9 @@ def run(run_id, model_params_file):
         "batch": 0,
         "total_imgs": 0,
     }
-    checkpoint_path  = get_checkpoint_path()
-    assert bool(run_id) == bool(checkpoint_path)
+    checkpoint_paths  = get_checkpoint_paths(checkpoint_dir, run_id)
+    checkpoint_path = checkpoint_paths[-1] if checkpoint_paths else None
+    assert bool(run_id) == bool(checkpoint_paths)
 
     if checkpoint_path:
         print(f"Loading checkpoint: {checkpoint_path}")

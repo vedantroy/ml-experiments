@@ -3,10 +3,9 @@ import argparse
 
 from fastargs import Section, Param, get_current_config
 from fastargs.decorators import param
-from imagen_pytorch import Imagen, BaseUnet64, ImagenTrainer
-import torch
 import torchvision.transforms.functional as T
-import torchvision
+
+from model_loader import get_checkpoint_paths, load_checkpoint_params_and_ctx, create_trainer, get_step
 
 Section("run", "run configuration").params(
     run_id=Param(
@@ -20,28 +19,15 @@ Section("run", "run configuration").params(
     )
 )
 
-def generate_for_checkpoint(checkpoint):
-    step = str(checkpoint).split("/")[-1]
-    print(f"Generating for checkpoint: {checkpoint} (step = {step})")
-    unet1 = BaseUnet64(
-        # TODO: Fix this
-        dim=256,
-    )
+def generate_for_checkpoint(checkpoint_path):
+    params, _ = load_checkpoint_params_and_ctx(checkpoint_path)
+    trainer = create_trainer(params)
+    trainer.load(checkpoint_path / "trainer.ckpt")
 
-    imagen = Imagen(
-        unets=(unet1,),
-        image_sizes=(64,),
-        # If True, this just does 0 to 1 => -1 to 1
-        auto_normalize_img=True,
-    ).cuda()
-    trainer = ImagenTrainer(imagen)
-
-    print("Loading trainer...")
-    trainer.load(checkpoint / "trainer.ckpt", strict=True)
-    print("Trainer loaded")
-    trainer.eval()
+    step = get_step(checkpoint_path)
 
     # sample = "sample_caption"
+    sample = "1girl black_legwear brown_hair controller green_eyes hat joystick long_hair solo teruterubouzu thighhigh"
     imgs = trainer.sample(texts=[sample], cond_scale=10., stop_at_unet_number=1)
     i = 0
     for img in imgs:
@@ -54,17 +40,11 @@ def generate_for_checkpoint(checkpoint):
 def run(run_id, latest):
     print(f"Doing inference on run: {run_id}")
 
-    checkpoints = list(Path(f"./runs/{run_id}").glob("*"))
-
-    def get_step(p):
-        dir_name = str(p).split("/")[-1]
-        return int(dir_name)
-
-    checkpoints.sort(key=get_step)
+    checkpoint_paths = get_checkpoint_paths("./runs", run_id)
     if latest:
-        generate_for_checkpoint(checkpoints[-1])
+        generate_for_checkpoint(checkpoint_paths[-1])
     else:
-        for checkpoint in checkpoints:
+        for checkpoint in checkpoint_paths:
             generate_for_checkpoint(checkpoint)
 
 parser = argparse.ArgumentParser(description="Generate samples for a model")
