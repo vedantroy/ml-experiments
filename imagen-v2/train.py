@@ -270,7 +270,6 @@ def train(run_id, trainer, params, ctx, max_batch_size, gradient_update_size, va
             epoch_step += 1
 
             imgs, tags = batch["img"], batch["tags"]
-            print(f"imgs_shape={imgs.shape}, max_batch_size={max_batch_size}")
             # imgs = imgs.float() / 255
 
             loss = trainer(
@@ -280,7 +279,6 @@ def train(run_id, trainer, params, ctx, max_batch_size, gradient_update_size, va
                 max_batch_size=max_batch_size,
             )
 
-            print(loss)
             if math.isnan(loss):
                 raise NaNLoss()
 
