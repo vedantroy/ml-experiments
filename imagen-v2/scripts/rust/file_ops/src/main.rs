@@ -1,16 +1,15 @@
 use anyhow::{anyhow, bail, Result};
+use futures::{future::join_all, stream::FuturesUnordered, StreamExt};
 use glob::glob;
-use rio;
-use futures::{stream::FuturesUnordered, StreamExt};
-use std::fs::{self, File};
+use indicatif::ProgressBar;
+use rayon;
+use rayon::prelude::*;
+use std::io::Write;
 use std::path::Path;
-
-// `O_DIRECT` requires all reads and writes
-// to be aligned to the block device's block
-// size. 4096 might not be the best, or even
-// a valid one, for yours!
-//#[repr(align(4096))]
-//struct Aligned([u8; CHUNK_SIZE as usize]);
+use std::{
+    fs::{self, File},
+    thread::JoinHandle,
+};
 
 fn glob_to_file_names(pattern: &str) -> Result<Vec<String>> {
     Ok(glob(pattern)?
@@ -24,7 +23,6 @@ fn glob_to_file_names(pattern: &str) -> Result<Vec<String>> {
 async fn main() -> Result<()> {
     let dest_dir = "../../../data/danbooru/raw/valid_imgs_4";
     let src_dir = "../../../data/danbooru/raw/imgs";
-    let n_workers = 140;
 
     let src_dir_path = Path::new(src_dir);
     if !src_dir_path.exists() {
@@ -46,47 +44,28 @@ async fn main() -> Result<()> {
 
     let files: Vec<_> = glob(&format!("{}/*/*", src_dir))?
         .filter_map(|x| x.ok())
-        .filter_map(|x| x.to_str().map(|x| x.to_owned()))
         .collect();
+    println!("Processing: {} files", files.len());
 
-    let chunk_size = std::cmp::max(10, files.len() / n_workers);
-    let chunks = files.chunks(chunk_size);
+    rayon::ThreadPoolBuilder::new()
+        .num_threads(64)
+        .build_global()
+        .unwrap();
 
-    //let mut handles = vec![];
-    let mut futures = FuturesUnordered::new();
+    let res: Vec<_> = files
+        .par_iter()
+        .map(|path| {
+            let buf = fs::read(&path).expect("Could not read file");
+            let bucket = path.parent().unwrap();
+            let out_path = dest_dir_path
+                .join(bucket.file_name().unwrap())
+                .join(path.file_name().unwrap());
 
-    let ring = rio::new().unwrap();
-    for chunk in chunks {
-        let ring = ring.clone();
-        let chunk = chunk.to_vec();
-        let handle = tokio::spawn(async move {
-            for path in chunk {
-                let f = File::open(path).unwrap();
-                let meta = f.metadata().unwrap();
-                let file_size = meta.len();
-                print!("fsize: {}", file_size);
-
-                let iov = Vec::with_capacity(file_size as usize);
-                let mut bytes_read = 0;
-                loop {
-                    let read = ring.read_at(&f, &iov, bytes_read);
-                    bytes_read += read.await.unwrap() as u64;
-                    if bytes_read == file_size as u64 {
-                        break;
-                    } else {
-                        println!("partial len: {}", bytes_read);
-                    }
-                }
-                println!("bytes: {}", bytes_read)
-            }
-        });
-        //handles.push(handle);
-        futures.push(handle);
-    }
-
-    while let x = futures.next() {
-        println!("task finished");
-    }
+            //println!("Writing to: {:#?}", out_path);
+            let mut out = File::create(out_path).expect("Could not open file for writing");
+            out.write_all(&buf).expect("Could not write to file");
+        })
+        .collect();
 
     Ok(())
 }
