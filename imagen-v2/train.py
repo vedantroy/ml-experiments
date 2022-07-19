@@ -1,7 +1,9 @@
 import os
 import argparse
 from pathlib import Path
+import math
 import json
+import pkg_resources
 
 import torchvision.transforms.functional as T
 
@@ -48,6 +50,8 @@ Section("run", "run info").params(
     model_params=Param(str, "json file containing the initial parameters for the run", default="")
 )
 
+class NaNLoss(Exception):
+        pass
 
 @param("files.dataset_dir")
 @param("files.log_dir")
@@ -201,9 +205,11 @@ def create_trainer(params):
 def run(run_id, model_params_file):
     run_id = run_id if run_id != "" else None
     params = None
+    imagen_pytorch_version = pkg_resources.get_distribution("imagen_pytorch").version
     if not run_id:
         with open(model_params_file, "r") as f:
             params = json.load(f)
+            params['imagen_pytorch_version'] = imagen_pytorch_version
 
     ctx = {
         "batch": 0,
@@ -215,6 +221,7 @@ def run(run_id, model_params_file):
     if checkpoint_path:
         print(f"Loading checkpoint: {checkpoint_path}")
         params, ctx = load_checkpoint_params_and_ctx(checkpoint_path)
+        assert params['imagen_pytorch_version'] == imagen_pytorch_version
 
     print("Params: ", params)
     print("Context: ", ctx)
@@ -237,6 +244,10 @@ def run(run_id, model_params_file):
         except KeyboardInterrupt as e:
             print("Interrupted ...")
             save_checkpoint(run_id, trainer, params, ctx)
+        except NaNLoss as e:
+            print("Detected NaNLoss...")
+            save_checkpoint(run_id, trainer, params, ctx)
+
 
 @param("data.max_batch_size", "max_batch_size")
 @param("data.gradient_update_size", "gradient_update_size")
@@ -267,6 +278,10 @@ def train(run_id, trainer, params, ctx, max_batch_size, gradient_update_size, va
                 unet_number=1,
                 max_batch_size=max_batch_size,
             )
+
+            if math.isnan(loss):
+                raise NaNLoss()
+
             trainer.update(unet_number=1)
 
             if train_log_interval > 0 and ctx["batch"] % train_log_interval == 0:
