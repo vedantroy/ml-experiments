@@ -1,14 +1,11 @@
 use anyhow::{anyhow, bail, Result};
-use futures::{future::join_all, stream::FuturesUnordered, StreamExt};
 use glob::glob;
 use indicatif::ProgressBar;
-use rayon;
 use rayon::prelude::*;
 use std::io::Write;
 use std::path::Path;
 use std::{
     fs::{self, File},
-    thread::JoinHandle,
 };
 
 fn glob_to_file_names(pattern: &str) -> Result<Vec<String>> {
@@ -19,8 +16,7 @@ fn glob_to_file_names(pattern: &str) -> Result<Vec<String>> {
         .collect())
 }
 
-#[tokio::main]
-async fn main() -> Result<()> {
+fn main() -> Result<()> {
     let dest_dir = "../../../data/danbooru/raw/valid_imgs_4";
     let src_dir = "../../../data/danbooru/raw/imgs";
 
@@ -52,7 +48,7 @@ async fn main() -> Result<()> {
         .build_global()
         .unwrap();
 
-    let res: Vec<_> = files
+    let _: Vec<_> = files
         .par_iter()
         .map(|path| {
             let buf = fs::read(&path).expect("Could not read file");
