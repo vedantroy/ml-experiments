@@ -11,6 +11,7 @@
 
 from pathlib import Path
 import argparse
+import shutil
 
 import torchvision
 import torchvision.transforms.functional as T
@@ -24,6 +25,10 @@ Section("files", "inputs, outputs, etc.").params(
         "the directory with bucket subdirectories",
         default="./data/danbooru/raw/valid_imgs",
     ),
+    out_dir=Param(
+        str,
+        "the directory to output valid files"
+    )
     # Can't use sqlite w/ multiple threads
     # tags_db=Param(
     #     str,
@@ -44,14 +49,14 @@ config.validate(mode="stderr")
 config.summary()
 
 
-conn = None
 deleted = 0
-
+out_dir_path = None
 
 @param("files.in_dir")
+@param("files.out_dir")
 # @param("files.tags_db")
-def run(in_dir):
-    global conn, deleted
+def run(in_dir, out_dir):
+    global out_dir_path, deleted
 
     # tags_db_path = Path(tags_db)
     # assert tags_db_path.is_file(), f"No DB file at: {tags_db}"
@@ -59,6 +64,14 @@ def run(in_dir):
 
     in_dir_path = Path(in_dir)
     assert in_dir_path.is_dir(), f"{in_dir} must be a directory"
+
+    out_dir_path = Path(out_dir)
+    out_dir_path.mkdir(parents=True, exist_ok=True)
+
+    buckets = list(Path(in_dir).glob("*"))
+    for bucket in buckets:
+        name = bucket.name
+        (out_dir_path / name).mkdir(exist_ok=True)
 
     img_files = list(Path(in_dir).glob("*/*"))
     total = len(img_files)
@@ -69,27 +82,30 @@ def run(in_dir):
 
 
 def process_file(path):
-    global conn, deleted
+    global deleted, out_dir_path
 
-    s = str(path)
-    if not s.endswith("jpg") and not s.endswith("jpeg") and not s.endswith("png"):
-        path.unlink()
-        deleted += 1
-        return
+    parent, name = path.parent, path.name
+    out_path = out_dir_path / parent.name / name
+    shutil.copy(path, out_path)
 
-    img = None
-    try:
-        img = torchvision.io.image.read_image(s)
-    except Exception:
-        path.unlink()
-        deleted += 1
-        return
+    #if not s.endswith("jpg") and not s.endswith("jpeg") and not s.endswith("png"):
+    #    path.unlink()
+    #    deleted += 1
+    #    return
 
-    if img.shape[0] != 3:
-        # Not RGB
-        path.unlink()
-        deleted += 1
-        return
+    # img = None
+    # try:
+    #     img = torchvision.io.image.read_image(s)
+    # except Exception:
+    #     path.unlink()
+    #     deleted += 1
+    #     return
+
+    # if img.shape[0] != 3:
+    #     # Not RGB
+    #     path.unlink()
+    #     deleted += 1
+    #     return
 
     # tags = conn.execute(
     #    f'select tag from tags where tags.id = "{path.stem}" limit 1'

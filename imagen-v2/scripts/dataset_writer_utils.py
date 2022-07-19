@@ -135,8 +135,9 @@ def init_dataset_dir(dataset_dir, overwrite):
     except StopIteration:
         pass
 
-def init_cli_args():
-    parser = argparse.ArgumentParser(description="Construct a streaming dataset")
+# TODO: Remove default arg
+def init_cli_args(description="Construct a streaming dataset"):
+    parser = argparse.ArgumentParser(description)
     config = get_current_config()
     config.augment_argparse(parser)
     config.collect_argparse_args(parser)
