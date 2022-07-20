@@ -27,7 +27,6 @@ import shutil
 from math import ceil
 from threading import Thread, Lock
 
-import torch
 import duckdb
 import sqlite3
 from torch import chunk
