@@ -1,8 +1,0 @@
-{
-  "dependencies": {
-    "better-sqlite3": "^7.6.0",
-    "lmdb": "^2.5.3",
-    "lodash": "^4.17.21",
-    "tqdm": "^2.0.3"
-  }
-}
