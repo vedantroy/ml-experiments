@@ -38,9 +38,9 @@ from fastargs import Param, Section, get_current_config
 from fastargs.decorators import param
 from tqdm.contrib.concurrent import thread_map
 from composer.datasets.streaming import StreamingDatasetWriter
-from imagen_pytorch.t5 import t5_encode_text, DEFAULT_T5_NAME
 
 from dataset_writer_utils import save_tensor
+
 
 Section("files", "inputs, outputs, etc.").params(
     in_dir=Param(
