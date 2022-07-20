@@ -7,6 +7,7 @@ use futures::future;
 use glob::glob;
 use indicatif::ProgressBar;
 use tokio_uring::fs::{self, File};
+use tch;
 
 fn glob_to_file_names(pattern: &str) -> Result<Vec<String>> {
     Ok(glob(pattern)?
@@ -21,8 +22,12 @@ async fn worker(
     bar: ProgressBar,
     dest_dir: PathBuf,
 ) -> Result<()> {
+    let gpus = tch::Cuda::device_count();
+    println!("got {} gpus", gpus);
+
     // Pre-allocating & resizing the buffer increases io perf from
     // 2gb/s => 2.35gb/s, but I can't figure it out w/ the borrow-checker
+    // For some reason write_at requires an argument that is 'static
     // let mut buf = vec![];
     for (path, meta) in chunk {
         let target_bytes = meta.size() as usize;
@@ -65,12 +70,11 @@ async fn worker(
             };
             let mut bytes_written = 0;
             while bytes_written < target_bytes {
-                let out = out_f.write_at(&buf[..target_bytes], bytes_written as u64).await;
+                let out = out_f.write_at(buf, bytes_written as u64).await;
                 bytes_written += out.0?;
                 buf = out.1;
             }
         }
-
         bar.inc(1);
     }
     Ok(())

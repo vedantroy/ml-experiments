@@ -1,0 +1,1363 @@
+Name: appdirs
+Version: 1.4.4
+Summary: A small Python module for determining appropriate platform-specific dirs, e.g. a "user data dir".
+Home-page: http://github.com/ActiveState/appdirs
+Author: Trent Mick
+Author-email: trentm@gmail.com
+License: MIT
+Location: /home/vedant/miniconda3/lib/python3.9/site-packages
+Requires: 
+Required-by: label-studio, label-studio-tools
+---
+Name: asgiref
+Version: 3.5.2
+Summary: ASGI specs, helper code, and adapters
+Home-page: https://github.com/django/asgiref/
+Author: Django Software Foundation
+Author-email: foundation@djangoproject.com
+License: BSD
+Location: /home/vedant/miniconda3/lib/python3.9/site-packages
+Requires: 
+Required-by: Django
+---
+Name: async-timeout
+Version: 4.0.2
+Summary: Timeout context manager for asyncio programs
+Home-page: https://github.com/aio-libs/async-timeout
+Author: Andrew Svetlov <andrew.svetlov@gmail.com>
+Author-email: andrew.svetlov@gmail.com
+License: Apache 2
+Location: /home/vedant/miniconda3/lib/python3.9/site-packages
+Requires: 
+Required-by: redis
+---
+Name: attr
+Version: 0.3.1
+Summary: Simple decorator to set attributes of target function or class in a DRY way.
+Home-page: https://github.com/denis-ryzhkov/attr
+Author: Denis Ryzhkov
+Author-email: denisr@denisr.com
+License: MIT
+Location: /home/vedant/miniconda3/lib/python3.9/site-packages
+Requires: 
+Required-by: label-studio
+---
+Name: attrs
+Version: 21.4.0
+Summary: Classes Without Boilerplate
+Home-page: https://www.attrs.org/
+Author: Hynek Schlawack
+Author-email: hs@ox.cx
+License: MIT
+Location: /home/vedant/miniconda3/lib/python3.9/site-packages
+Requires: 
+Required-by: label-studio, jsonschema
+---
+Name: azure-core
+Version: 1.24.2
+Summary: Microsoft Azure Core Library for Python
+Home-page: https://github.com/Azure/azure-sdk-for-python/tree/main/sdk/core/azure-core
+Author: Microsoft Corporation
+Author-email: azpysdkhelp@microsoft.com
+License: MIT License
+Location: /home/vedant/miniconda3/lib/python3.9/site-packages
+Requires: requests, six, typing-extensions
+Required-by: msrest, azure-storage-blob
+---
+Name: azure-storage-blob
+Version: 12.13.0
+Summary: Microsoft Azure Blob Storage Client Library for Python
+Home-page: https://github.com/Azure/azure-sdk-for-python/tree/main/sdk/storage/azure-storage-blob
+Author: Microsoft Corporation
+Author-email: ascl@microsoft.com
+License: MIT License
+Location: /home/vedant/miniconda3/lib/python3.9/site-packages
+Requires: msrest, azure-core, cryptography
+Required-by: label-studio
+---
+Name: boto
+Version: 2.49.0
+Summary: Amazon Web Services Library
+Home-page: https://github.com/boto/boto/
+Author: Mitch Garnaat
+Author-email: mitch@garnaat.com
+License: MIT
+Location: /home/vedant/miniconda3/lib/python3.9/site-packages
+Requires: 
+Required-by: label-studio
+---
+Name: boto3
+Version: 1.16.63
+Summary: The AWS SDK for Python
+Home-page: https://github.com/boto/boto3
+Author: Amazon Web Services
+Author-email: UNKNOWN
+License: Apache License 2.0
+Location: /home/vedant/miniconda3/lib/python3.9/site-packages
+Requires: botocore, jmespath, s3transfer
+Required-by: label-studio
+---
+Name: botocore
+Version: 1.19.63
+Summary: Low-level, data-driven core of boto 3.
+Home-page: https://github.com/boto/botocore
+Author: Amazon Web Services
+Author-email: UNKNOWN
+License: Apache License 2.0
+Location: /home/vedant/miniconda3/lib/python3.9/site-packages
+Requires: urllib3, jmespath, python-dateutil
+Required-by: s3transfer, label-studio, boto3
+---
+Name: boxing
+Version: 0.1.4
+Summary: Draw boxes like never before!
+Home-page: https://github.com/acifani/boxing
+Author: Alessandro Cifani
+Author-email: alessandro.cifani@gmail.com
+License: BSD
+Location: /home/vedant/miniconda3/lib/python3.9/site-packages
+Requires: 
+Required-by: label-studio
+---
+Name: brotlipy
+Version: 0.7.0
+Summary: Python binding to the Brotli library
+Home-page: https://github.com/python-hyper/brotlipy/
+Author: Cory Benfield
+Author-email: cory@lukasa.co.uk
+License: MIT
+Location: /home/vedant/miniconda3/lib/python3.9/site-packages
+Requires: cffi
+Required-by: 
+---
+Name: cachetools
+Version: 4.2.4
+Summary: Extensible memoizing collections and decorators
+Home-page: https://github.com/tkem/cachetools/
+Author: Thomas Kemmer
+Author-email: tkemmer@computer.org
+License: MIT
+Location: /home/vedant/miniconda3/lib/python3.9/site-packages
+Requires: 
+Required-by: google-auth
+---
+Name: certifi
+Version: 2022.6.15
+Summary: Python package for providing Mozilla's CA Bundle.
+Home-page: https://github.com/certifi/python-certifi
+Author: Kenneth Reitz
+Author-email: me@kennethreitz.com
+License: MPL-2.0
+Location: /home/vedant/miniconda3/lib/python3.9/site-packages
+Requires: 
+Required-by: sentry-sdk, requests, msrest, launchdarkly-server-sdk
+---
+Name: cffi
+Version: 1.15.0
+Summary: Foreign Function Interface for Python calling C code.
+Home-page: http://cffi.readthedocs.org
+Author: Armin Rigo, Maciej Fijalkowski
+Author-email: python-cffi@googlegroups.com
+License: MIT
+Location: /home/vedant/miniconda3/lib/python3.9/site-packages
+Requires: pycparser
+Required-by: cryptography, brotlipy
+---
+Name: charset-normalizer
+Version: 2.0.4
+Summary: The Real First Universal Charset Detector. Open, modern and actively maintained alternative to Chardet.
+Home-page: https://github.com/ousret/charset_normalizer
+Author: Ahmed TAHRI @Ousret
+Author-email: ahmed.tahri@cloudnursery.dev
+License: MIT
+Location: /home/vedant/miniconda3/lib/python3.9/site-packages
+Requires: 
+Required-by: requests
+---
+Name: click
+Version: 8.1.3
+Summary: Composable command line interface toolkit
+Home-page: https://palletsprojects.com/p/click/
+Author: Armin Ronacher
+Author-email: armin.ronacher@active-4.com
+License: BSD-3-Clause
+Location: /home/vedant/miniconda3/lib/python3.9/site-packages
+Requires: 
+Required-by: rq, nltk
+---
+Name: colorama
+Version: 0.4.4
+Summary: Cross-platform colored terminal text.
+Home-page: https://github.com/tartley/colorama
+Author: Jonathan Hartley
+Author-email: tartley@tartley.com
+License: BSD
+Location: /home/vedant/miniconda3/lib/python3.9/site-packages
+Requires: 
+Required-by: label-studio
+---
+Name: conda
+Version: 4.12.0
+Summary: OS-agnostic, system-level binary package manager.
+Home-page: https://github.com/conda/conda
+Author: Anaconda, Inc.
+Author-email: conda@continuum.io
+License: BSD-3-Clause
+Location: /home/vedant/miniconda3/lib/python3.9/site-packages
+Requires: pycosat, requests, ruamel_yaml_conda
+Required-by: 
+---
+Name: conda-content-trust
+Version: 0+unknown
+Summary: Signing and verification tools for conda
+Home-page: https://github.com/conda/conda-content-trust
+Author: Anaconda, Inc.
+Author-email: conda@anaconda.com
+License: BSD
+Location: /home/vedant/miniconda3/lib/python3.9/site-packages
+Requires: six, cryptography
+Required-by: 
+---
+Name: conda-package-handling
+Version: 1.8.1
+Summary: Create and extract conda packages of various formats
+Home-page: https://github.com/conda/conda-package-handling
+Author: Anaconda, Inc.
+Author-email: conda@anaconda.com
+License: UNKNOWN
+Location: /home/vedant/miniconda3/lib/python3.9/site-packages
+Requires: 
+Required-by: 
+---
+Name: coreapi
+Version: 2.3.3
+Summary: Python client library for Core API.
+Home-page: https://github.com/core-api/python-client
+Author: Tom Christie
+Author-email: tom@tomchristie.com
+License: BSD
+Location: /home/vedant/miniconda3/lib/python3.9/site-packages
+Requires: requests, uritemplate, coreschema, itypes
+Required-by: openapi-codec, drf-yasg, django-rest-swagger
+---
+Name: coreschema
+Version: 0.0.4
+Summary: Core Schema.
+Home-page: https://github.com/core-api/python-coreschema
+Author: Tom Christie
+Author-email: tom@tomchristie.com
+License: BSD
+Location: /home/vedant/miniconda3/lib/python3.9/site-packages
+Requires: jinja2
+Required-by: drf-yasg, coreapi
+---
+Name: cryptography
+Version: 36.0.0
+Summary: cryptography is a package which provides cryptographic recipes and primitives to Python developers.
+Home-page: https://github.com/pyca/cryptography
+Author: The Python Cryptographic Authority and individual contributors
+Author-email: cryptography-dev@python.org
+License: BSD or Apache License, Version 2.0
+Location: /home/vedant/miniconda3/lib/python3.9/site-packages
+Requires: cffi
+Required-by: pyOpenSSL, conda-content-trust, azure-storage-blob
+---
+Name: defusedxml
+Version: 0.7.1
+Summary: XML bomb protection for Python stdlib modules
+Home-page: https://github.com/tiran/defusedxml
+Author: Christian Heimes
+Author-email: christian@python.org
+License: PSFL
+Location: /home/vedant/miniconda3/lib/python3.9/site-packages
+Requires: 
+Required-by: label-studio
+---
+Name: Deprecated
+Version: 1.2.13
+Summary: Python @deprecated decorator to deprecate old python classes, functions or methods.
+Home-page: https://github.com/tantale/deprecated
+Author: Laurent LAPORTE
+Author-email: tantale.solutions@gmail.com
+License: MIT
+Location: /home/vedant/miniconda3/lib/python3.9/site-packages
+Requires: wrapt
+Required-by: redis
+---
+Name: Django
+Version: 3.1.14
+Summary: A high-level Python Web framework that encourages rapid development and clean, pragmatic design.
+Home-page: https://www.djangoproject.com/
+Author: Django Software Foundation
+Author-email: foundation@djangoproject.com
+License: BSD-3-Clause
+Location: /home/vedant/miniconda3/lib/python3.9/site-packages
+Requires: asgiref, pytz, sqlparse
+Required-by: label-studio, drf-yasg, drf-generators, djangorestframework, django-user-agents, django-rq, django-model-utils, django-filter, django-debug-toolbar, django-cors-headers, django-annoying
+---
+Name: django-annoying
+Version: 0.10.6
+Summary: This is a django application that tries to eliminate annoying things in the Django framework.
+Home-page: https://github.com/skorokithakis/django-annoying
+Author: Stavros Korokithakis
+Author-email: stavros@korokithakis.net
+License: BSD
+Location: /home/vedant/miniconda3/lib/python3.9/site-packages
+Requires: Django, six
+Required-by: label-studio
+---
+Name: django-cors-headers
+Version: 3.6.0
+Summary: django-cors-headers is a Django application for handling the server headers required for Cross-Origin Resource Sharing (CORS).
+Home-page: https://github.com/adamchainz/django-cors-headers
+Author: Otto Yiu
+Author-email: otto@live.ca
+License: MIT License
+Location: /home/vedant/miniconda3/lib/python3.9/site-packages
+Requires: Django
+Required-by: label-studio
+---
+Name: django-debug-toolbar
+Version: 3.2.1
+Summary: A configurable set of panels that display various debug information about the current request/response.
+Home-page: https://github.com/jazzband/django-debug-toolbar
+Author: Rob Hudson
+Author-email: rob@cogit8.org
+License: BSD
+Location: /home/vedant/miniconda3/lib/python3.9/site-packages
+Requires: sqlparse, Django
+Required-by: label-studio
+---
+Name: django-extensions
+Version: 3.1.0
+Summary: Extensions for Django
+Home-page: http://github.com/django-extensions/django-extensions
+Author: Michael Trier
+Author-email: mtrier@gmail.com
+License: MIT License
+Location: /home/vedant/miniconda3/lib/python3.9/site-packages
+Requires: 
+Required-by: label-studio
+---
+Name: django-filter
+Version: 2.4.0
+Summary: Django-filter is a reusable Django application for allowing users to filter querysets dynamically.
+Home-page: https://github.com/carltongibson/django-filter/tree/master
+Author: Alex Gaynor
+Author-email: alex.gaynor@gmail.com
+License: BSD
+Location: /home/vedant/miniconda3/lib/python3.9/site-packages
+Requires: Django
+Required-by: label-studio
+---
+Name: django-model-utils
+Version: 4.1.1
+Summary: Django model mixins and utilities
+Home-page: https://github.com/jazzband/django-model-utils
+Author: Carl Meyer
+Author-email: carl@oddbird.net
+License: BSD
+Location: /home/vedant/miniconda3/lib/python3.9/site-packages
+Requires: Django
+Required-by: label-studio
+---
+Name: django-ranged-fileresponse
+Version: 0.1.2
+Summary: Modified Django FileResponse that adds Content-Range headers.
+Home-page: https://github.com/wearespindle/django-ranged-fileresponse
+Author: Spindle
+Author-email: opensource@wearespindle.com
+License: MIT
+Location: /home/vedant/miniconda3/lib/python3.9/site-packages
+Requires: 
+Required-by: label-studio
+---
+Name: django-rest-swagger
+Version: 2.2.0
+Summary: Swagger UI for Django REST Framework 3.5+
+Home-page: https://github.com/marcgibbons/django-rest-swagger
+Author: Marc Gibbons
+Author-email: marc_gibbons@rogers.com
+License: FreeBSD License
+Location: /home/vedant/miniconda3/lib/python3.9/site-packages
+Requires: simplejson, djangorestframework, coreapi, openapi-codec
+Required-by: label-studio
+---
+Name: django-rq
+Version: 2.5.1
+Summary: An app that provides django integration for RQ (Redis Queue)
+Home-page: https://github.com/rq/django-rq
+Author: Selwin Ong
+Author-email: selwin.ong@gmail.com
+License: MIT
+Location: /home/vedant/miniconda3/lib/python3.9/site-packages
+Requires: redis, rq, django
+Required-by: label-studio
+---
+Name: django-user-agents
+Version: 0.4.0
+Summary: A django package that allows easy identification of visitors' browser, operating system and device information (mobile phone, tablet or has touch capabilities).
+Home-page: https://github.com/selwin/django-user_agents
+Author: Selwin Ong
+Author-email: selwin.ong@gmail.com
+License: MIT
+Location: /home/vedant/miniconda3/lib/python3.9/site-packages
+Requires: django, user-agents
+Required-by: label-studio
+---
+Name: djangorestframework
+Version: 3.13.1
+Summary: Web APIs for Django, made easy.
+Home-page: https://www.django-rest-framework.org/
+Author: Tom Christie
+Author-email: tom@tomchristie.com
+License: BSD
+Location: /home/vedant/miniconda3/lib/python3.9/site-packages
+Requires: pytz, django
+Required-by: drf-yasg, django-rest-swagger
+---
+Name: drf-dynamic-fields
+Version: 0.3.0
+Summary: Dynamically return subset of Django REST Framework serializer fields
+Home-page: https://github.com/dbrgn/drf-dynamic-fields
+Author: Danilo Bargen
+Author-email: mail@dbrgn.ch
+License: MIT
+Location: /home/vedant/miniconda3/lib/python3.9/site-packages
+Requires: 
+Required-by: label-studio
+---
+Name: drf-flex-fields
+Version: 0.9.5
+Summary: Flexible, dynamic fields and nested resources for Django REST Framework serializers.
+Home-page: https://github.com/rsinger86/drf-flex-fields
+Author: Robert Singer
+Author-email: robertgsinger@gmail.com
+License: MIT
+Location: /home/vedant/miniconda3/lib/python3.9/site-packages
+Requires: 
+Required-by: label-studio
+---
+Name: drf-generators
+Version: 0.3.0
+Summary: Generate DRF Serializers, Views, and urls for your API aplication.
+Home-page: https://github.com/brobin/drf-generators
+Author: Tobin Brown
+Author-email: tobin@brobin.me
+License: MIT
+Location: /home/vedant/miniconda3/lib/python3.9/site-packages
+Requires: Django
+Required-by: label-studio
+---
+Name: drf-yasg
+Version: 1.20.0
+Summary: Automated generation of real Swagger/OpenAPI 2.0 schemas from Django Rest Framework code.
+Home-page: https://github.com/axnsan12/drf-yasg
+Author: Cristi V.
+Author-email: cristi@cvjd.me
+License: BSD License
+Location: /home/vedant/miniconda3/lib/python3.9/site-packages
+Requires: packaging, djangorestframework, uritemplate, coreschema, ruamel.yaml, Django, coreapi, inflection
+Required-by: label-studio
+---
+Name: expiringdict
+Version: 1.1.4
+Summary: Dictionary with auto-expiring values for caching purposes
+Home-page: https://github.com/mailgun/expiringdict
+Author: Anton Efimenko
+Author-email: anton@mailgunhq.com
+License: Apache 2
+Location: /home/vedant/miniconda3/lib/python3.9/site-packages
+Requires: 
+Required-by: launchdarkly-server-sdk
+---
+Name: google-api-core
+Version: 1.31.5
+Summary: Google API client core library
+Home-page: https://github.com/googleapis/python-api-core
+Author: Google LLC
+Author-email: googleapis-packages@google.com
+License: Apache 2.0
+Location: /home/vedant/miniconda3/lib/python3.9/site-packages
+Requires: protobuf, packaging, google-auth, six, googleapis-common-protos, pytz, setuptools, requests
+Required-by: label-studio, google-cloud-logging, google-cloud-core, google-cloud-appengine-logging
+---
+Name: google-auth
+Version: 1.35.0
+Summary: Google Authentication Library
+Home-page: https://github.com/googleapis/google-auth-library-python
+Author: Google Cloud Platform
+Author-email: googleapis-packages@google.com
+License: Apache 2.0
+Location: /home/vedant/miniconda3/lib/python3.9/site-packages
+Requires: pyasn1-modules, rsa, six, setuptools, cachetools
+Required-by: label-studio, google-cloud-storage, google-api-core
+---
+Name: google-cloud-appengine-logging
+Version: 1.1.0
+Summary: UNKNOWN
+Home-page: https://github.com/googleapis/python-appengine-logging
+Author: Google LLC
+Author-email: googleapis-packages@oogle.com
+License: Apache 2.0
+Location: /home/vedant/miniconda3/lib/python3.9/site-packages
+Requires: google-api-core, proto-plus, packaging
+Required-by: label-studio, google-cloud-logging
+---
+Name: google-cloud-audit-log
+Version: 0.2.0
+Summary: Google Cloud Audit Protos
+Home-page: https://github.com/googleapis/python-audit-log
+Author: Google LLC
+Author-email: googleapis-packages@google.com
+License: Apache-2.0
+Location: /home/vedant/miniconda3/lib/python3.9/site-packages
+Requires: protobuf, googleapis-common-protos
+Required-by: label-studio, google-cloud-logging
+---
+Name: google-cloud-core
+Version: 1.5.0
+Summary: Google Cloud API client core library
+Home-page: https://github.com/googleapis/python-cloud-core
+Author: Google LLC
+Author-email: googleapis-packages@google.com
+License: Apache 2.0
+Location: /home/vedant/miniconda3/lib/python3.9/site-packages
+Requires: six, google-api-core
+Required-by: label-studio, google-cloud-storage, google-cloud-logging
+---
+Name: google-cloud-logging
+Version: 2.7.2
+Summary: Stackdriver Logging API client library
+Home-page: https://github.com/googleapis/python-logging
+Author: Google LLC
+Author-email: googleapis-packages@google.com
+License: Apache 2.0
+Location: /home/vedant/miniconda3/lib/python3.9/site-packages
+Requires: google-api-core, grpc-google-iam-v1, protobuf, google-cloud-audit-log, google-cloud-appengine-logging, google-cloud-core, proto-plus
+Required-by: label-studio
+---
+Name: google-cloud-storage
+Version: 1.29.0
+Summary: Google Cloud Storage API client library
+Home-page: https://github.com/googleapis/python-storage
+Author: Google LLC
+Author-email: googleapis-packages@google.com
+License: Apache 2.0
+Location: /home/vedant/miniconda3/lib/python3.9/site-packages
+Requires: google-auth, google-resumable-media, google-cloud-core
+Required-by: label-studio
+---
+Name: google-resumable-media
+Version: 0.5.1
+Summary: Utilities for Google Media Downloads and Resumable Uploads
+Home-page: https://github.com/googleapis/google-resumable-media-python
+Author: Google Cloud Platform
+Author-email: googleapis-publisher@google.com
+License: Apache 2.0
+Location: /home/vedant/miniconda3/lib/python3.9/site-packages
+Requires: six
+Required-by: label-studio, google-cloud-storage
+---
+Name: googleapis-common-protos
+Version: 1.52.0
+Summary: Common protobufs used in Google APIs
+Home-page: https://github.com/googleapis/python-api-common-protos
+Author: Google LLC
+Author-email: googleapis-packages@google.com
+License: Apache-2.0
+Location: /home/vedant/miniconda3/lib/python3.9/site-packages
+Requires: protobuf
+Required-by: label-studio, grpc-google-iam-v1, google-cloud-audit-log, google-api-core
+---
+Name: grpc-google-iam-v1
+Version: 0.12.3
+Summary: GRPC library for the google-iam-v1 service
+Home-page: https://github.com/googleapis/googleapis
+Author: Google Inc
+Author-email: googleapis-packages@google.com
+License: Apache-2.0
+Location: /home/vedant/miniconda3/lib/python3.9/site-packages
+Requires: googleapis-common-protos, grpcio
+Required-by: label-studio, google-cloud-logging
+---
+Name: grpcio
+Version: 1.47.0
+Summary: HTTP/2-based RPC framework
+Home-page: https://grpc.io
+Author: The gRPC Authors
+Author-email: grpc-io@googlegroups.com
+License: Apache License 2.0
+Location: /home/vedant/miniconda3/lib/python3.9/site-packages
+Requires: six
+Required-by: grpc-google-iam-v1
+---
+Name: htmlmin
+Version: 0.1.12
+Summary: An HTML Minifier
+Home-page: https://htmlmin.readthedocs.io/en/latest/
+Author: Dave Mankoff
+Author-email: mankyd@gmail.com
+License: BSD
+Location: /home/vedant/miniconda3/lib/python3.9/site-packages
+Requires: 
+Required-by: label-studio
+---
+Name: idna
+Version: 3.3
+Summary: Internationalized Domain Names in Applications (IDNA)
+Home-page: https://github.com/kjd/idna
+Author: Kim Davies
+Author-email: kim@cynosure.com.au
+License: BSD-3-Clause
+Location: /home/vedant/miniconda3/lib/python3.9/site-packages
+Requires: 
+Required-by: requests
+---
+Name: inflection
+Version: 0.5.1
+Summary: A port of Ruby on Rails inflector to Python
+Home-page: https://github.com/jpvanhal/inflection
+Author: Janne Vanhala
+Author-email: janne.vanhala@gmail.com
+License: MIT
+Location: /home/vedant/miniconda3/lib/python3.9/site-packages
+Requires: 
+Required-by: drf-yasg
+---
+Name: isodate
+Version: 0.6.1
+Summary: An ISO 8601 date/time/duration parser and formatter
+Home-page: https://github.com/gweis/isodate/
+Author: Gerhard Weis
+Author-email: gerhard.weis@proclos.com
+License: BSD
+Location: /home/vedant/miniconda3/lib/python3.9/site-packages
+Requires: six
+Required-by: msrest
+---
+Name: itypes
+Version: 1.2.0
+Summary: Simple immutable types for python.
+Home-page: http://github.com/PavanTatikonda/itypes
+Author: Tom Christie
+Author-email: tom@tomchristie.com
+License: BSD
+Location: /home/vedant/miniconda3/lib/python3.9/site-packages
+Requires: 
+Required-by: coreapi
+---
+Name: Jinja2
+Version: 3.1.2
+Summary: A very fast and expressive template engine.
+Home-page: https://palletsprojects.com/p/jinja/
+Author: Armin Ronacher
+Author-email: armin.ronacher@active-4.com
+License: BSD-3-Clause
+Location: /home/vedant/miniconda3/lib/python3.9/site-packages
+Requires: MarkupSafe
+Required-by: coreschema
+---
+Name: jmespath
+Version: 0.10.0
+Summary: JSON Matching Expressions
+Home-page: https://github.com/jmespath/jmespath.py
+Author: James Saryerwinnie
+Author-email: js@jamesls.com
+License: MIT
+Location: /home/vedant/miniconda3/lib/python3.9/site-packages
+Requires: 
+Required-by: botocore, boto3
+---
+Name: joblib
+Version: 1.1.0
+Summary: Lightweight pipelining with Python functions
+Home-page: https://joblib.readthedocs.io
+Author: Gael Varoquaux
+Author-email: gael.varoquaux@normalesup.org
+License: BSD
+Location: /home/vedant/miniconda3/lib/python3.9/site-packages
+Requires: 
+Required-by: nltk
+---
+Name: jsonschema
+Version: 3.2.0
+Summary: An implementation of JSON Schema validation for Python
+Home-page: https://github.com/Julian/jsonschema
+Author: Julian Berman
+Author-email: Julian@GrayVines.com
+License: UNKNOWN
+Location: /home/vedant/miniconda3/lib/python3.9/site-packages
+Requires: setuptools, pyrsistent, six, attrs
+Required-by: label-studio
+---
+Name: label-studio
+Version: 1.5.0.post0
+Summary: Label Studio annotation tool
+Home-page: https://github.com/heartexlabs/label-studio
+Author: Heartex
+Author-email: hello@heartex.ai
+License: UNKNOWN
+Location: /home/vedant/miniconda3/lib/python3.9/site-packages
+Requires: python-dateutil, appdirs, attr, django-debug-toolbar, django-rest-swagger, psycopg2-binary, drf-yasg, drf-dynamic-fields, pytz, xmljson, colorama, rules, boto, django-cors-headers, google-cloud-appengine-logging, google-resumable-media, django-filter, jsonschema, drf-generators, label-studio-tools, pandas, wheel, azure-storage-blob, protobuf, django-model-utils, django-user-agents, defusedxml, django-extensions, label-studio-converter, pyyaml, boto3, pydantic, google-api-core, django-rq, Django, botocore, sentry-sdk, grpc-google-iam-v1, google-cloud-core, ordered-set, lockfile, googleapis-common-protos, django-ranged-fileresponse, attrs, launchdarkly-server-sdk, django-annoying, rq, requests, boxing, lxml, google-cloud-audit-log, drf-flex-fields, google-cloud-storage, ujson, google-auth, google-cloud-logging, htmlmin, redis, numpy
+Required-by: 
+---
+Name: label-studio-converter
+Version: 0.0.40
+Summary: Format converter add-on for Label Studio
+Home-page: https://github.com/heartexlabs/label-studio-converter
+Author: Heartex
+Author-email: hello@heartex.ai
+License: UNKNOWN
+Location: /home/vedant/miniconda3/lib/python3.9/site-packages
+Requires: nltk, pandas, requests, Pillow
+Required-by: label-studio
+---
+Name: label-studio-tools
+Version: 0.0.0.dev14
+Summary: Label studio common tools
+Home-page: https://github.com/heartexlabs/label-studio-tools
+Author: Heartex
+Author-email: hello@heartex.ai
+License: UNKNOWN
+Location: /home/vedant/miniconda3/lib/python3.9/site-packages
+Requires: appdirs, lxml
+Required-by: label-studio
+---
+Name: launchdarkly-server-sdk
+Version: 7.3.0
+Summary: LaunchDarkly SDK for Python
+Home-page: https://github.com/launchdarkly/python-server-sdk
+Author: LaunchDarkly
+Author-email: team@launchdarkly.com
+License: UNKNOWN
+Location: /home/vedant/miniconda3/lib/python3.9/site-packages
+Requires: certifi, urllib3, expiringdict, pyRFC3339, semver
+Required-by: label-studio
+---
+Name: lockfile
+Version: 0.12.2
+Summary: Platform-independent file locking module
+Home-page: http://launchpad.net/pylockfile
+Author: OpenStack
+Author-email: openstack-dev@lists.openstack.org
+License: UNKNOWN
+Location: /home/vedant/miniconda3/lib/python3.9/site-packages
+Requires: 
+Required-by: label-studio
+---
+Name: lxml
+Version: 4.9.1
+Summary: Powerful and Pythonic XML processing library combining libxml2/libxslt with the ElementTree API.
+Home-page: https://lxml.de/
+Author: lxml dev team
+Author-email: lxml-dev@lxml.de
+License: BSD
+Location: /home/vedant/miniconda3/lib/python3.9/site-packages
+Requires: 
+Required-by: label-studio, label-studio-tools
+---
+Name: mamba
+Version: 0.15.3
+Summary: A fast, libsolv based solver and installer for conda packages.
+Home-page: https://github.com/mamba-org/mamba
+Author: Wolf Vollprecht
+Author-email: wolf.vollprecht@quantstack.net
+License: UNKNOWN
+Location: /home/vedant/miniconda3/lib/python3.9/site-packages
+Requires: 
+Required-by: 
+---
+Name: MarkupSafe
+Version: 2.1.1
+Summary: Safely add untrusted strings to HTML/XML markup.
+Home-page: https://palletsprojects.com/p/markupsafe/
+Author: Armin Ronacher
+Author-email: armin.ronacher@active-4.com
+License: BSD-3-Clause
+Location: /home/vedant/miniconda3/lib/python3.9/site-packages
+Requires: 
+Required-by: Jinja2
+---
+Name: msrest
+Version: 0.7.1
+Summary: AutoRest swagger generator Python client runtime.
+Home-page: https://github.com/Azure/msrest-for-python
+Author: Microsoft Corporation
+Author-email: 
+License: MIT License
+Location: /home/vedant/miniconda3/lib/python3.9/site-packages
+Requires: azure-core, isodate, certifi, requests-oauthlib, requests
+Required-by: azure-storage-blob
+---
+Name: nltk
+Version: 3.6.7
+Summary: Natural Language Toolkit
+Home-page: https://www.nltk.org/
+Author: NLTK Team
+Author-email: nltk.team@gmail.com
+License: Apache License, Version 2.0
+Location: /home/vedant/miniconda3/lib/python3.9/site-packages
+Requires: click, regex, tqdm, joblib
+Required-by: label-studio-converter
+---
+Name: numpy
+Version: 1.23.1
+Summary: NumPy is the fundamental package for array computing with Python.
+Home-page: https://www.numpy.org
+Author: Travis E. Oliphant et al.
+Author-email: 
+License: BSD
+Location: /home/vedant/miniconda3/lib/python3.9/site-packages
+Requires: 
+Required-by: pandas, label-studio
+---
+Name: oauthlib
+Version: 3.2.0
+Summary: A generic, spec-compliant, thorough implementation of the OAuth request-signing logic
+Home-page: https://github.com/oauthlib/oauthlib
+Author: The OAuthlib Community
+Author-email: idan@gazit.me
+License: BSD
+Location: /home/vedant/miniconda3/lib/python3.9/site-packages
+Requires: 
+Required-by: requests-oauthlib
+---
+Name: openapi-codec
+Version: 1.3.2
+Summary: An OpenAPI codec for Core API.
+Home-page: http://github.com/core-api/python-openapi-codec/
+Author: Tom Christie
+Author-email: tom@tomchristie.com
+License: BSD
+Location: /home/vedant/miniconda3/lib/python3.9/site-packages
+Requires: coreapi
+Required-by: django-rest-swagger
+---
+Name: ordered-set
+Version: 4.0.2
+Summary: A set that remembers its order, and allows looking up its items by their index in that order.
+Home-page: https://github.com/LuminosoInsight/ordered-set
+Author: 
+Author-email: 
+License: MIT-LICENSE
+Location: /home/vedant/miniconda3/lib/python3.9/site-packages
+Requires: 
+Required-by: label-studio
+---
+Name: packaging
+Version: 21.3
+Summary: Core utilities for Python packages
+Home-page: https://github.com/pypa/packaging
+Author: Donald Stufft and individual contributors
+Author-email: donald@stufft.io
+License: BSD-2-Clause or Apache-2.0
+Location: /home/vedant/miniconda3/lib/python3.9/site-packages
+Requires: pyparsing
+Required-by: redis, google-cloud-appengine-logging, google-api-core, drf-yasg
+---
+Name: pandas
+Version: 1.3.5
+Summary: Powerful data structures for data analysis, time series, and statistics
+Home-page: https://pandas.pydata.org
+Author: The Pandas Development Team
+Author-email: pandas-dev@python.org
+License: BSD-3-Clause
+Location: /home/vedant/miniconda3/lib/python3.9/site-packages
+Requires: numpy, python-dateutil, pytz
+Required-by: label-studio, label-studio-converter
+---
+Name: Pillow
+Version: 9.0.1
+Summary: Python Imaging Library (Fork)
+Home-page: https://python-pillow.org
+Author: Alex Clark (PIL Fork Author)
+Author-email: aclark@python-pillow.org
+License: HPND
+Location: /home/vedant/miniconda3/lib/python3.9/site-packages
+Requires: 
+Required-by: label-studio-converter
+---
+Name: pip
+Version: 21.2.4
+Summary: The PyPA recommended tool for installing Python packages.
+Home-page: https://pip.pypa.io/
+Author: The pip developers
+Author-email: distutils-sig@python.org
+License: MIT
+Location: /home/vedant/miniconda3/lib/python3.9/site-packages
+Requires: 
+Required-by: 
+---
+Name: proto-plus
+Version: 1.20.6
+Summary: Beautiful, Pythonic protocol buffers.
+Home-page: https://github.com/googleapis/proto-plus-python.git
+Author: Google LLC
+Author-email: googleapis-packages@google.com
+License: Apache 2.0
+Location: /home/vedant/miniconda3/lib/python3.9/site-packages
+Requires: protobuf
+Required-by: google-cloud-logging, google-cloud-appengine-logging
+---
+Name: protobuf
+Version: 3.20.1
+Summary: Protocol Buffers
+Home-page: https://developers.google.com/protocol-buffers/
+Author: 
+Author-email: 
+License: BSD-3-Clause
+Location: /home/vedant/miniconda3/lib/python3.9/site-packages
+Requires: 
+Required-by: proto-plus, label-studio, googleapis-common-protos, google-cloud-logging, google-cloud-audit-log, google-api-core
+---
+Name: psycopg2-binary
+Version: 2.9.1
+Summary: psycopg2 - Python-PostgreSQL Database Adapter
+Home-page: https://psycopg.org/
+Author: Federico Di Gregorio
+Author-email: fog@initd.org
+License: LGPL with exceptions
+Location: /home/vedant/miniconda3/lib/python3.9/site-packages
+Requires: 
+Required-by: label-studio
+---
+Name: pyasn1
+Version: 0.4.8
+Summary: ASN.1 types and codecs
+Home-page: https://github.com/etingof/pyasn1
+Author: Ilya Etingof
+Author-email: etingof@gmail.com
+License: BSD
+Location: /home/vedant/miniconda3/lib/python3.9/site-packages
+Requires: 
+Required-by: rsa, pyasn1-modules
+---
+Name: pyasn1-modules
+Version: 0.2.8
+Summary: A collection of ASN.1-based protocols modules.
+Home-page: https://github.com/etingof/pyasn1-modules
+Author: Ilya Etingof
+Author-email: etingof@gmail.com
+License: BSD-2-Clause
+Location: /home/vedant/miniconda3/lib/python3.9/site-packages
+Requires: pyasn1
+Required-by: google-auth
+---
+Name: pycosat
+Version: 0.6.3
+Summary: bindings to picosat (a SAT solver)
+Home-page: https://github.com/ContinuumIO/pycosat
+Author: Ilan Schnell
+Author-email: ilan@continuum.io
+License: MIT
+Location: /home/vedant/miniconda3/lib/python3.9/site-packages
+Requires: 
+Required-by: conda
+---
+Name: pycparser
+Version: 2.21
+Summary: C parser in Python
+Home-page: https://github.com/eliben/pycparser
+Author: Eli Bendersky
+Author-email: eliben@gmail.com
+License: BSD
+Location: /home/vedant/miniconda3/lib/python3.9/site-packages
+Requires: 
+Required-by: cffi
+---
+Name: pydantic
+Version: 1.8.2
+Summary: Data validation and settings management using python 3.6 type hinting
+Home-page: https://github.com/samuelcolvin/pydantic
+Author: Samuel Colvin
+Author-email: s@muelcolvin.com
+License: MIT
+Location: /home/vedant/miniconda3/lib/python3.9/site-packages
+Requires: typing-extensions
+Required-by: label-studio
+---
+Name: pyOpenSSL
+Version: 22.0.0
+Summary: Python wrapper module around the OpenSSL library
+Home-page: https://pyopenssl.org/
+Author: The pyOpenSSL developers
+Author-email: cryptography-dev@python.org
+License: Apache License, Version 2.0
+Location: /home/vedant/miniconda3/lib/python3.9/site-packages
+Requires: cryptography
+Required-by: 
+---
+Name: pyparsing
+Version: 3.0.9
+Summary: pyparsing module - Classes and methods to define and execute parsing grammars
+Home-page: 
+Author: 
+Author-email: Paul McGuire <ptmcg.gm+pyparsing@gmail.com>
+License: 
+Location: /home/vedant/miniconda3/lib/python3.9/site-packages
+Requires: 
+Required-by: packaging
+---
+Name: pyRFC3339
+Version: 1.1
+Summary: Generate and parse RFC 3339 timestamps
+Home-page: https://github.com/kurtraschke/pyRFC3339
+Author: Kurt Raschke
+Author-email: kurt@kurtraschke.com
+License: MIT
+Location: /home/vedant/miniconda3/lib/python3.9/site-packages
+Requires: pytz
+Required-by: launchdarkly-server-sdk
+---
+Name: pyrsistent
+Version: 0.18.1
+Summary: Persistent/Functional/Immutable data structures
+Home-page: http://github.com/tobgu/pyrsistent/
+Author: Tobias Gustafsson
+Author-email: tobias.l.gustafsson@gmail.com
+License: MIT
+Location: /home/vedant/miniconda3/lib/python3.9/site-packages
+Requires: 
+Required-by: jsonschema
+---
+Name: PySocks
+Version: 1.7.1
+Summary: A Python SOCKS client module. See https://github.com/Anorov/PySocks for more information.
+Home-page: https://github.com/Anorov/PySocks
+Author: Anorov
+Author-email: anorov.vorona@gmail.com
+License: BSD
+Location: /home/vedant/miniconda3/lib/python3.9/site-packages
+Requires: 
+Required-by: 
+---
+Name: python-dateutil
+Version: 2.8.1
+Summary: Extensions to the standard Python datetime module
+Home-page: https://dateutil.readthedocs.io
+Author: Gustavo Niemeyer
+Author-email: gustavo@niemeyer.net
+License: Dual License
+Location: /home/vedant/miniconda3/lib/python3.9/site-packages
+Requires: six
+Required-by: pandas, label-studio, botocore
+---
+Name: pytz
+Version: 2019.3
+Summary: World timezone definitions, modern and historical
+Home-page: http://pythonhosted.org/pytz
+Author: Stuart Bishop
+Author-email: stuart@stuartbishop.net
+License: MIT
+Location: /home/vedant/miniconda3/lib/python3.9/site-packages
+Requires: 
+Required-by: pyRFC3339, pandas, label-studio, google-api-core, djangorestframework, Django
+---
+Name: PyYAML
+Version: 6.0
+Summary: YAML parser and emitter for Python
+Home-page: https://pyyaml.org/
+Author: Kirill Simonov
+Author-email: xi@resolvent.net
+License: MIT
+Location: /home/vedant/miniconda3/lib/python3.9/site-packages
+Requires: 
+Required-by: label-studio
+---
+Name: redis
+Version: 4.3.4
+Summary: Python client for Redis database and key-value store
+Home-page: https://github.com/redis/redis-py
+Author: Redis Inc.
+Author-email: oss@redis.com
+License: MIT
+Location: /home/vedant/miniconda3/lib/python3.9/site-packages
+Requires: packaging, async-timeout, deprecated
+Required-by: rq, label-studio, django-rq
+---
+Name: regex
+Version: 2022.7.9
+Summary: Alternative regular expression module, to replace re.
+Home-page: https://github.com/mrabarnett/mrab-regex
+Author: Matthew Barnett
+Author-email: regex@mrabarnett.plus.com
+License: Apache Software License
+Location: /home/vedant/miniconda3/lib/python3.9/site-packages
+Requires: 
+Required-by: nltk
+---
+Name: requests
+Version: 2.27.1
+Summary: Python HTTP for Humans.
+Home-page: https://requests.readthedocs.io
+Author: Kenneth Reitz
+Author-email: me@kennethreitz.org
+License: Apache 2.0
+Location: /home/vedant/miniconda3/lib/python3.9/site-packages
+Requires: urllib3, idna, charset-normalizer, certifi
+Required-by: requests-oauthlib, msrest, label-studio, label-studio-converter, google-api-core, coreapi, conda, azure-core
+---
+Name: requests-oauthlib
+Version: 1.3.1
+Summary: OAuthlib authentication support for Requests.
+Home-page: https://github.com/requests/requests-oauthlib
+Author: Kenneth Reitz
+Author-email: me@kennethreitz.com
+License: ISC
+Location: /home/vedant/miniconda3/lib/python3.9/site-packages
+Requires: requests, oauthlib
+Required-by: msrest
+---
+Name: rq
+Version: 1.10.1
+Summary: RQ is a simple, lightweight, library for creating background jobs, and processing them.
+Home-page: https://github.com/nvie/rq/
+Author: Vincent Driessen
+Author-email: vincent@3rdcloud.com
+License: BSD
+Location: /home/vedant/miniconda3/lib/python3.9/site-packages
+Requires: click, redis
+Required-by: label-studio, django-rq
+---
+Name: rsa
+Version: 4.8
+Summary: Pure-Python RSA implementation
+Home-page: https://stuvel.eu/rsa
+Author: Sybren A. Stüvel
+Author-email: sybren@stuvel.eu
+License: Apache-2.0
+Location: /home/vedant/miniconda3/lib/python3.9/site-packages
+Requires: pyasn1
+Required-by: google-auth
+---
+Name: ruamel.yaml
+Version: 0.17.21
+Summary: ruamel.yaml is a YAML parser/emitter that supports roundtrip preservation of comments, seq/map flow style, and map key order
+Home-page: https://sourceforge.net/p/ruamel-yaml/code/ci/default/tree
+Author: Anthon van der Neut
+Author-email: a.van.der.neut@ruamel.eu
+License: MIT license
+Location: /home/vedant/miniconda3/lib/python3.9/site-packages
+Requires: ruamel.yaml.clib
+Required-by: drf-yasg
+---
+Name: ruamel.yaml.clib
+Version: 0.2.6
+Summary: C version of reader, parser and emitter for ruamel.yaml derived from libyaml
+Home-page: https://sourceforge.net/p/ruamel-yaml-clib/code/ci/default/tree
+Author: Anthon van der Neut
+Author-email: a.van.der.neut@ruamel.eu
+License: MIT
+Location: /home/vedant/miniconda3/lib/python3.9/site-packages
+Requires: 
+Required-by: ruamel.yaml
+---
+Name: ruamel-yaml-conda
+Version: 0.15.100
+Summary: ruamel_yaml is a YAML parser/emitter that supports roundtrip preservation of comments, seq/map flow style, and map key order
+Home-page: UNKNOWN
+Author: Anthon van der Neut
+Author-email: a.van.der.neut@ruamel.eu
+License: UNKNOWN
+Location: /home/vedant/miniconda3/lib/python3.9/site-packages
+Requires: 
+Required-by: conda
+---
+Name: rules
+Version: 2.2
+Summary: Awesome Django authorization, without the database
+Home-page: http://github.com/dfunckt/django-rules
+Author: Akis Kesoglou
+Author-email: akiskesoglou@gmail.com
+License: MIT
+Location: /home/vedant/miniconda3/lib/python3.9/site-packages
+Requires: 
+Required-by: label-studio
+---
+Name: s3transfer
+Version: 0.3.7
+Summary: An Amazon S3 Transfer Manager
+Home-page: https://github.com/boto/s3transfer
+Author: Amazon Web Services
+Author-email: kyknapp1@gmail.com
+License: Apache License 2.0
+Location: /home/vedant/miniconda3/lib/python3.9/site-packages
+Requires: botocore
+Required-by: boto3
+---
+Name: semver
+Version: 2.13.0
+Summary: Python helper for Semantic Versioning (http://semver.org/)
+Home-page: https://github.com/python-semver/python-semver
+Author: Kostiantyn Rybnikov
+Author-email: k-bx@k-bx.com
+License: BSD
+Location: /home/vedant/miniconda3/lib/python3.9/site-packages
+Requires: 
+Required-by: launchdarkly-server-sdk
+---
+Name: sentry-sdk
+Version: 1.7.1
+Summary: Python client for Sentry (https://sentry.io)
+Home-page: https://github.com/getsentry/sentry-python
+Author: Sentry Team and Contributors
+Author-email: hello@sentry.io
+License: BSD
+Location: /home/vedant/miniconda3/lib/python3.9/site-packages
+Requires: certifi, urllib3
+Required-by: label-studio
+---
+Name: setuptools
+Version: 61.2.0
+Summary: Easily download, build, install, upgrade, and uninstall Python packages
+Home-page: https://github.com/pypa/setuptools
+Author: Python Packaging Authority
+Author-email: distutils-sig@python.org
+License: UNKNOWN
+Location: /home/vedant/miniconda3/lib/python3.9/site-packages
+Requires: 
+Required-by: jsonschema, google-auth, google-api-core
+---
+Name: simplejson
+Version: 3.17.6
+Summary: Simple, fast, extensible JSON encoder/decoder for Python
+Home-page: https://github.com/simplejson/simplejson
+Author: Bob Ippolito
+Author-email: bob@redivi.com
+License: MIT License
+Location: /home/vedant/miniconda3/lib/python3.9/site-packages
+Requires: 
+Required-by: django-rest-swagger
+---
+Name: six
+Version: 1.16.0
+Summary: Python 2 and 3 compatibility utilities
+Home-page: https://github.com/benjaminp/six
+Author: Benjamin Peterson
+Author-email: benjamin@python.org
+License: MIT
+Location: /home/vedant/miniconda3/lib/python3.9/site-packages
+Requires: 
+Required-by: python-dateutil, jsonschema, isodate, grpcio, google-resumable-media, google-cloud-core, google-auth, google-api-core, django-annoying, conda-content-trust, azure-core
+---
+Name: sqlparse
+Version: 0.4.2
+Summary: A non-validating SQL parser.
+Home-page: https://github.com/andialbrecht/sqlparse
+Author: Andi Albrecht
+Author-email: albrecht.andi@gmail.com
+License: BSD-3-Clause
+Location: /home/vedant/miniconda3/lib/python3.9/site-packages
+Requires: 
+Required-by: Django, django-debug-toolbar
+---
+Name: tqdm
+Version: 4.63.0
+Summary: Fast, Extensible Progress Meter
+Home-page: https://tqdm.github.io
+Author: 
+Author-email: 
+License: MPLv2.0, MIT Licences
+Location: /home/vedant/miniconda3/lib/python3.9/site-packages
+Requires: 
+Required-by: nltk
+---
+Name: typing_extensions
+Version: 4.3.0
+Summary: Backported and Experimental Type Hints for Python 3.7+
+Home-page: 
+Author: 
+Author-email: "Guido van Rossum, Jukka Lehtosalo, Łukasz Langa, Michael Lee" <levkivskyi@gmail.com>
+License: 
+Location: /home/vedant/miniconda3/lib/python3.9/site-packages
+Requires: 
+Required-by: pydantic, azure-core
+---
+Name: ua-parser
+Version: 0.15.0
+Summary: Python port of Browserscope's user agent parser
+Home-page: https://github.com/ua-parser/uap-python
+Author: PBS
+Author-email: no-reply@pbs.org
+License: Apache 2.0
+Location: /home/vedant/miniconda3/lib/python3.9/site-packages
+Requires: 
+Required-by: user-agents
+---
+Name: ujson
+Version: 5.4.0
+Summary: Ultra fast JSON encoder and decoder for Python
+Home-page: https://github.com/ultrajson/ultrajson
+Author: Jonas Tarnstrom
+Author-email: 
+License: 
+Location: /home/vedant/miniconda3/lib/python3.9/site-packages
+Requires: 
+Required-by: label-studio
+---
+Name: uritemplate
+Version: 4.1.1
+Summary: Implementation of RFC 6570 URI Templates
+Home-page: https://uritemplate.readthedocs.org
+Author: Ian Stapleton Cordasco
+Author-email: graffatcolmingov@gmail.com
+License: BSD 3-Clause License or Apache License, Version 2.0
+Location: /home/vedant/miniconda3/lib/python3.9/site-packages
+Requires: 
+Required-by: drf-yasg, coreapi
+---
+Name: urllib3
+Version: 1.26.8
+Summary: HTTP library with thread-safe connection pooling, file post, and more.
+Home-page: https://urllib3.readthedocs.io/
+Author: Andrey Petrov
+Author-email: andrey.petrov@shazow.net
+License: MIT
+Location: /home/vedant/miniconda3/lib/python3.9/site-packages
+Requires: 
+Required-by: sentry-sdk, requests, launchdarkly-server-sdk, botocore
+---
+Name: user-agents
+Version: 2.2.0
+Summary: A library to identify devices (phones, tablets) and their capabilities by parsing browser user agent strings.
+Home-page: https://github.com/selwin/python-user-agents
+Author: Selwin Ong
+Author-email: selwin.ong@gmail.com
+License: MIT
+Location: /home/vedant/miniconda3/lib/python3.9/site-packages
+Requires: ua-parser
+Required-by: django-user-agents
+---
+Name: wheel
+Version: 0.37.1
+Summary: A built-package format for Python
+Home-page: https://github.com/pypa/wheel
+Author: Daniel Holth
+Author-email: dholth@fastmail.fm
+License: MIT
+Location: /home/vedant/miniconda3/lib/python3.9/site-packages
+Requires: 
+Required-by: label-studio
+---
+Name: wrapt
+Version: 1.14.1
+Summary: Module for decorators, wrappers and monkey patching.
+Home-page: https://github.com/GrahamDumpleton/wrapt
+Author: Graham Dumpleton
+Author-email: Graham.Dumpleton@gmail.com
+License: BSD
+Location: /home/vedant/miniconda3/lib/python3.9/site-packages
+Requires: 
+Required-by: Deprecated
+---
+Name: xmljson
+Version: 0.2.0
+Summary: Converts XML into JSON/Python dicts/arrays and vice-versa.
+Home-page: https://github.com/sanand0/xmljson
+Author: S Anand
+Author-email: root.node@gmail.com
+License: MIT
+Location: /home/vedant/miniconda3/lib/python3.9/site-packages
+Requires: 
+Required-by: label-studio
