@@ -31,7 +31,6 @@ import time
 
 import duckdb
 import sqlite3
-from torch import chunk
 import torchvision
 import torchvision.transforms.functional as T
 from fastargs import Param, Section, get_current_config
@@ -278,5 +277,7 @@ class TaskRunner:
 # w/o sharding
 # - Inserting imgs takes ~15-30% of time
 # Lock acquisition times can be up to 5 seconds
+
+# 365G img data => ~ 85G img data (due to cropping / etc)
 runner = TaskRunner(use_shards=True, profile=False)
 runner.run()

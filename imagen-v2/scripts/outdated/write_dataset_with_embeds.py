@@ -21,7 +21,9 @@ def run(imgs_dir, tags_db, dataset_dir):
     init_dataset_dir()
 
     ds = CenterCropImageCaptionDataset(tags_db=tags_db, img_buckets_dir=imgs_dir)
+    print(f"samples: {len(ds)}")
     dl = DataLoader(ds, batch_size=1, shuffle=False, num_workers=12)
+
 
     FIELDS = ["img", "tags", "embeddings", "masks", "tokens"]
     with StreamingDatasetWriter(
@@ -36,6 +38,8 @@ def run(imgs_dir, tags_db, dataset_dir):
             # that you used to process the images
             # Anything else will cause data drift (I think ???)
             img_bytes = save_tensor(img)
+
+            print(tags)
 
             # TODO: Might not need to return masks:
             embeds, masks = t5_encode_text(
@@ -62,5 +66,6 @@ def run(imgs_dir, tags_db, dataset_dir):
             )
 
 
+init_dataset_args()
 init_cli_args()
 run()

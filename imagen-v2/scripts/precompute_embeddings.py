@@ -26,10 +26,8 @@ parser = argparse.ArgumentParser(
     description="compute embeddings for all texts in the db"
 )
 config = get_current_config()
-
 config.augment_argparse(parser)
 config.collect_argparse_args(parser)
-
 config.validate(mode="stderr")
 config.summary()
 
@@ -44,6 +42,32 @@ class CaptionDataset(Dataset):
     def __getitem__(self, index):
         id, text = self.conn.execute(f"SELECT id, tag FROM tags LIMIT 1 OFFSET {index}").fetchone()
         return { "id": id, "text": text }
+
+def process_batches(conn, dl):
+    for batch in tqdm(dl):
+        ids, texts = batch["id"], batch["text"]
+        embeds, mask = t5_encode_text(
+            texts,
+            name="google/t5-v1_1-xl",
+            return_attn_mask=True,
+        )
+        mask = mask.to(torch.int16)
+        rows = []
+        for row_idx, argmin_idx in enumerate(mask.argmin(dim=1)):
+            argmin_idx = argmin_idx.item()
+            embed = None
+            if argmin_idx != 0:
+                embed = embeds[row_idx,:argmin_idx]
+            else:
+                # This happens if a row is [1, 1, 1]
+                # in which case argmin = 1, but
+                # that just means this input generated the most tokens
+                embed = embeds[row_idx,:]
+            embed = embed.cpu()
+
+            embed_bytes = save_tensor(embed)
+            rows.append((ids[row_idx].item(), texts[row_idx], embed_bytes))
+        conn.executemany("INSERT INTO embeddings VALUES (?, ?, ?)", rows)
 
 @param("files.tags_db")
 @param("files.overwrite")
@@ -63,38 +87,20 @@ def run(tags_db, overwrite, out_embedding_db):
     print(f"Computing embeddings for {rows} texts")
 
 
-    outdb_conn = sqlite3.connect(out_embedding_db)
+    # https://github.com/ghaering/pysqlite/issues/109
+    # Prevent sqlite3 from implicitly starting a transaction
+    outdb_conn = sqlite3.connect(out_embedding_db, isolation_level=None).cursor()
     outdb_conn.execute('pragma journal_mode=wal')
-    outdb_conn.execute("CREATE TABLE embeddings (id INTEGER, text VARCHAR, embedding BLOB)").fetchall()
+    outdb_conn.execute("CREATE TABLE embeddings (id INTEGER, text VARCHAR, embedding BLOB, PRIMARY KEY (id))").fetchall()
 
     ds = CaptionDataset(tagsdb_conn, rows)
-    dl = DataLoader(ds, batch_size=36, shuffle=False, num_workers=1) 
+    dl = DataLoader(ds, batch_size=36, shuffle=False, num_workers=10)
 
-    for batch in tqdm(dl):
-        ids, texts = batch["id"], batch["text"]
-        embeds, mask = t5_encode_text(
-            texts,
-            name=DEFAULT_T5_NAME,
-            return_attn_mask=True,
-        )
-        mask = mask.to(torch.int16)
-        rows = []
-        for row_idx, argmin_idx in enumerate(mask.argmin(dim=1)):
-            argmin_idx = argmin_idx.item()
-            embed = None
-            if argmin_idx != 0:
-                embed = embeds[row_idx,:argmin_idx]
-            else:
-                # This happens if a row is [1, 1, 1]
-                # in which case argmin = 1, but
-                # that just means this input generated the most tokens
-                embed = embeds[row_idx,:]
-            embed = embed.cpu()
-
-            embed_bytes = save_tensor(embed)
-            rows.append((ids[row_idx].item(), texts[row_idx], embed_bytes))
-            
-        outdb_conn.executemany("INSERT INTO embeddings VALUES (?, ?, ?)", rows)
-    outdb_conn.execute('VACUUM')
+    try:
+        process_batches(outdb_conn, dl)
+    except KeyboardInterrupt as e:
+        print("Interrupted, saving DB ...")
+        outdb_conn.execute('VACUUM')
+        outdb_conn.close()
 
 run()
