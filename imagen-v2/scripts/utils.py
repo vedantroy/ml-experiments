@@ -1,5 +1,6 @@
 import io
 import argparse
+import time
 
 from fastargs.decorators import get_current_config
 import torch
@@ -17,3 +18,6 @@ def init_cli_args(description):
 
     config.validate(mode="stderr")
     config.summary()
+
+def get_current_milli_time():
+    return round(time.time() * 1000)
