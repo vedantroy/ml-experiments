@@ -36,7 +36,6 @@ import torchvision.transforms.functional as T
 from fastargs import Param, Section, get_current_config
 from fastargs.decorators import param
 from tqdm.contrib.concurrent import thread_map
-from composer.datasets.streaming import StreamingDatasetWriter
 
 from dataset_writer_utils import save_tensor
 
