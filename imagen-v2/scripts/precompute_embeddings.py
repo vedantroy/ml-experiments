@@ -66,6 +66,9 @@ def process_batches(conn, dl):
             print("Starting batch")
         ids, texts = batch["id"], batch["text"]
         start = get_current_milli_time()
+        # if stuff crashes with an opaque error, it's probably b/c
+        # your computer doesn't have enough memory -- run htop
+        # using the t5-xl requires ~ 20 gigs
         embeds, mask = t5_encode_text(
             texts,
             #name=DEFAULT_T5_NAME,
