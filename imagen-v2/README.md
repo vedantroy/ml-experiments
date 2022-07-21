@@ -4,6 +4,23 @@ conda create -n imagen python=3.9
 pip install -r /path/to/requirements.txt
 ```
 
+This should be handled by requirements.txt, but to make sure
+(run this inside the conda venv):
+```
+pip uninstall Pillow
+pip uninstall PIL
+Pip install Pillow-SIMD
+```
+
+then try
+```
+import PIL
+print(PIL.__version__)
+```
+
+if there's a postfix, you are using Pillow-SIMD
+Interestingly, Pillow-SIMD might make the pre-processing scripts slower ??
+
 ## GPU Info
 ### V100
 - 16 GB memory

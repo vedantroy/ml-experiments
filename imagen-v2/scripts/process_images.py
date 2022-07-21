@@ -33,11 +33,11 @@ import duckdb
 import sqlite3
 import torchvision
 import torchvision.transforms.functional as T
-from fastargs import Param, Section, get_current_config
+from fastargs import Param, Section
 from fastargs.decorators import param
 from tqdm.contrib.concurrent import thread_map
 
-from dataset_writer_utils import save_tensor
+from utils import save_tensor, init_cli_args
 
 
 Section("files", "inputs, outputs, etc.").params(
@@ -55,17 +55,7 @@ Section("files", "inputs, outputs, etc.").params(
     overwrite=Param(bool, "delete the destination director", default=False),
 )
 
-parser = argparse.ArgumentParser(
-    description="Delete images that cannot be loaded by PIL/torchvision"
-)
-config = get_current_config()
-
-config.augment_argparse(parser)
-config.collect_argparse_args(parser)
-
-config.validate(mode="stderr")
-config.summary()
-
+init_cli_args("Delete images that cannot be loaded by PIL/torchvision")
 
 class TaskRunner:
     @param("files.in_dir")
@@ -101,6 +91,7 @@ class TaskRunner:
         self.use_shards = use_shards
         self.shards_path = out_dir_path / "shards"
         self.shards_path.mkdir()
+        # TODO: Unite these into a single dict
         self.sqlite_pool = {}
         self.locks = {}
         self.profile = profile
@@ -277,6 +268,6 @@ class TaskRunner:
 # - Inserting imgs takes ~15-30% of time
 # Lock acquisition times can be up to 5 seconds
 
-# 365G img data => ~ 85G img data (due to cropping / etc)
+# 365G img data => ~ 96G img data (due to cropping / skips / etc)
 runner = TaskRunner(use_shards=True, profile=False)
 runner.run()

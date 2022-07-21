@@ -1,35 +1,29 @@
 from pathlib import Path
 import argparse
-from supersqlite import sqlite3
+import duckdb
+import sqlite3
 
 import torch
 from torch.utils.data import DataLoader
 from torch.utils.data.dataset import Dataset
-from fastargs import Param, Section, get_current_config
+from fastargs import Param, Section 
 from fastargs.decorators import param
 from imagen_pytorch.t5 import t5_encode_text, DEFAULT_T5_NAME
 from tqdm import tqdm
 
-from dataset_writer_utils import save_tensor
+from utils import save_tensor, init_cli_args
 
 Section("files", "inputs, outputs, etc.").params(
     tags_db=Param(
         str,
-        "the sqlite database with id => tag",
-        default="./data/danbooru/artifacts/tags.sqlite",
+        "the duckdb database with id => tag",
+        default="./dataset/dataset.duckdb",
     ),
-    out_embedding_db=Param(str, "the sqlite database with id => embedding", default="./data/danbooru/artifacts/embeddings.sqlite"),
+    out_embedding_db=Param(str, "the sqlite database with id => embedding", default="./dataset/embeddings.sqlite"),
     overwrite=Param(bool, "delete the destination db", default=False),
 )
 
-parser = argparse.ArgumentParser(
-    description="compute embeddings for all texts in the db"
-)
-config = get_current_config()
-config.augment_argparse(parser)
-config.collect_argparse_args(parser)
-config.validate(mode="stderr")
-config.summary()
+init_cli_args("Precompute embeddings")
 
 class CaptionDataset(Dataset):
     def __init__(self, conn, len):
@@ -40,7 +34,9 @@ class CaptionDataset(Dataset):
         return self.len
 
     def __getitem__(self, index):
-        id, text = self.conn.execute(f"SELECT id, tag FROM tags LIMIT 1 OFFSET {index}").fetchone()
+        # CAUTION: I don't sort the text b/c I already sorted it before inserting it into DuckDB
+        # Make sure this continues to be the case!
+        id, text = self.conn.execute(f"SELECT id, concat_ws(' ', tags) as text FROM items LIMIT 1 OFFSET {index}").fetchone()
         return { "id": id, "text": text }
 
 def process_batches(conn, dl):
@@ -48,7 +44,8 @@ def process_batches(conn, dl):
         ids, texts = batch["id"], batch["text"]
         embeds, mask = t5_encode_text(
             texts,
-            name="google/t5-v1_1-xl",
+            name=DEFAULT_T5_NAME,
+            #name="google/t5-v1_1-xl",
             return_attn_mask=True,
         )
         mask = mask.to(torch.int16)
@@ -82,10 +79,9 @@ def run(tags_db, overwrite, out_embedding_db):
         return
     embedding_db_path.unlink(missing_ok=True)
 
-    tagsdb_conn = sqlite3.connect(tags_db)
-    rows = tagsdb_conn.execute("SELECT COUNT(*) FROM tags").fetchone()[0]
+    conn = duckdb.connect(tags_db, read_only=True)
+    rows = conn.execute("SELECT COUNT(*) FROM items").fetchone()[0]
     print(f"Computing embeddings for {rows} texts")
-
 
     # https://github.com/ghaering/pysqlite/issues/109
     # Prevent sqlite3 from implicitly starting a transaction
@@ -93,7 +89,7 @@ def run(tags_db, overwrite, out_embedding_db):
     outdb_conn.execute('pragma journal_mode=wal')
     outdb_conn.execute("CREATE TABLE embeddings (id INTEGER, text VARCHAR, embedding BLOB, PRIMARY KEY (id))").fetchall()
 
-    ds = CaptionDataset(tagsdb_conn, rows)
+    ds = CaptionDataset(conn, len=rows)
     dl = DataLoader(ds, batch_size=36, shuffle=False, num_workers=10)
 
     try:
