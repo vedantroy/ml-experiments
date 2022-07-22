@@ -2,6 +2,8 @@ import torch as tch
 
 from unet import UNetModel
 
+# These are parameters I copied by doing `print(...)`
+# in the original repo
 model = UNetModel(
     in_channels=3,
     model_channels=128,
@@ -14,7 +16,9 @@ model = UNetModel(
     num_classes=None,
     use_checkpoint=False,
     num_heads=4,
-    num_heads_upsample=4
+    num_heads_upsample=4,
+    # Except for this one, which I set to True
+    use_scale_shift_norm=True,
 )
 
 model = model.cuda()

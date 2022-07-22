@@ -19,6 +19,10 @@ from nn import (
     checkpoint,
 )
 
+def print2(*args):
+    if False:
+        print(*args)
+
 
 class TimestepBlock(nn.Module):
     """
@@ -131,13 +135,22 @@ class ResBlock(TimestepBlock):
         use_checkpoint=False,
     ):
         super().__init__()
+        print2("======")
+        print2(f"dims: {dims}")
         self.channels = channels
+        print2(f"channels: {channels}")
         self.emb_channels = emb_channels
+        print2(f"emb_channels: {emb_channels}")
         self.dropout = dropout
+        print2(f"dropout: {dropout}")
         self.out_channels = out_channels or channels
+        print2(f"out_channels: {out_channels}")
         self.use_conv = use_conv
+        print2(f"use_conv: {use_conv}")
         self.use_checkpoint = use_checkpoint
+        print2(f"use_checkpoint: {use_checkpoint}")
         self.use_scale_shift_norm = use_scale_shift_norm
+        print2(f"use_scale_shift_norm: {use_scale_shift_norm}")
 
         self.in_layers = nn.Sequential(
             normalization(channels),
@@ -182,15 +195,30 @@ class ResBlock(TimestepBlock):
         )
 
     def _forward(self, x, emb):
+        N, C, H, W = x.shape
+        assert emb.shape == (N, self.emb_channels)
+
         h = self.in_layers(x)
+        assert h.shape == (N, self.out_channels, H, W)
         emb_out = self.emb_layers(emb).type(h.dtype)
+        # Now I see why this is a loop
+        # While the repository does diffusion on 2D data (images)
+        # It could be done on higher dimensional data
+        # (so maybe x.shape == (N, C, W, H, ?))
         while len(emb_out.shape) < len(h.shape):
             emb_out = emb_out[..., None]
+        assert emb_out.shape == (N, 2 * self.out_channels, 1, 1)
         if self.use_scale_shift_norm:
             out_norm, out_rest = self.out_layers[0], self.out_layers[1:]
             scale, shift = th.chunk(emb_out, 2, dim=1)
+            assert scale.shape == shift.shape
+            assert scale.shape == (N, self.out_channels, 1, 1)
             h = out_norm(h) * (1 + scale) + shift
+            assert h.shape == (N, self.out_channels, H, W)
+            # SilU + Dropout + conv_nd
+            assert len(out_rest) == 3
             h = out_rest(h)
+            assert h.shape == (N, self.out_channels, H, W)
         else:
             h = h + emb_out
             h = self.out_layers(h)
@@ -221,7 +249,12 @@ class AttentionBlock(nn.Module):
 
     def _forward(self, x):
         b, c, *spatial = x.shape
+        H, W = spatial
+        # images are square
+        assert H == W
+        # Flatten the input into a single sequence
         x = x.reshape(b, c, -1)
+        assert x.shape == (b, c, H * W)
         qkv = self.qkv(self.norm(x))
         qkv = qkv.reshape(b * self.num_heads, -1, qkv.shape[2])
         h = self.attention(qkv)
@@ -271,7 +304,7 @@ class QKVAttention(nn.Module):
         # We perform two matmuls with the same number of ops.
         # The first computes the weight matrix, the second computes
         # the combination of the value vectors.
-        matmul_ops = 2 * b * (num_spatial ** 2) * c
+        matmul_ops = 2 * b * (num_spatial**2) * c
         model.total_ops += th.DoubleTensor([matmul_ops])
 
 
@@ -472,6 +505,9 @@ class UNetModel(nn.Module):
             self.num_classes is not None
         ), "must specify y if and only if the model is class-conditional"
 
+        N, C, W, H = x.shape
+        assert timesteps.shape == (N,)
+
         hs = []
         emb = self.time_embed(timestep_embedding(timesteps, self.model_channels))
 
@@ -544,4 +580,3 @@ class SuperResModel(UNetModel):
         upsampled = F.interpolate(low_res, (new_height, new_width), mode="bilinear")
         x = th.cat([x, upsampled], dim=1)
         return super().get_feature_vectors(x, timesteps, **kwargs)
-
