@@ -54,8 +54,6 @@ import torch as th
 # 2. Why is GroupNorm done in float32?
 # 3. Why add 1 to scale shift? (My guess is that it prevents gradient issues?)
 # - DONE
-# 4. What is the purpose of `zero_module`?
-#   - Seems like it initializes the weights to 0; but isn't that bad?
 # 5. (for Abhi) Why do we use a set dimension for the positional encodings & then pass them through a MLP?
 #   I kind of understand the MLP part, but why not just make the PEs equal to the channels?
 
@@ -101,12 +99,18 @@ class MyResBlock(nn.Module):
 
         self.out_norm = normalization(out_channels)
 
-        # > 1. We zero the skip connections following Ho et al 2020). 
+        # > 1. We zero the skip connections following Ho et al 2020. 
         # > Like you note, this does initialize resblocks to the identity, 
         # > which can actually help stabilize training (https://arxiv.org/abs/1901.09321). 
         # > This doesn't actually prevent learning. In the first step, the gradient for 
         # > most of the resblock is indeed zero, but in subsequent steps it will not be zero 
         # > because the zero'd out weight will itself no longer be zero.
+        
+        # My Understanding: I was confused about the fact that zeroing out all the weights
+        # will make the neurons update in the same direction. But I suspect convolutions are
+        # a special case, since each of the value in the filter will have a different gradient
+        # even if they are all initialized to the same value *because* each value in the filter
+        # is applied to a different set of pixels in the input (I think; this my best guess).
         self.out_conv = zero_module(nn.Conv2d(
             in_channels=out_channels,
             out_channels=out_channels,
