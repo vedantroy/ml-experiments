@@ -66,6 +66,13 @@ import torch as th
 def normalization(channels):
     return nn.GroupNorm(num_groups=32, num_channels=channels)
 
+def zero_module(module):
+    """
+    Zero out the parameters of a module and return it.
+    """
+    for p in module.parameters():
+        p.detach().zero_()
+    return module
 
 class MyResBlock(nn.Module):
     """
@@ -92,13 +99,19 @@ class MyResBlock(nn.Module):
         )
 
         self.out_norm = normalization(out_channels)
-        # TODO: QUESTION(4)
-        self.out_conv = nn.Conv2d(
+
+        # > 1. We zero the skip connections following Ho et al 2020). 
+        # > Like you note, this does initialize resblocks to the identity, 
+        # > which can actually help stabilize training (https://arxiv.org/abs/1901.09321). 
+        # > This doesn't actually prevent learning. In the first step, the gradient for 
+        # > most of the resblock is indeed zero, but in subsequent steps it will not be zero 
+        # > because the zero'd out weight will itself no longer be zero.
+        self.out_conv = zero_module(nn.Conv2d(
             in_channels=out_channels,
             out_channels=out_channels,
             kernel_size=3,
             padding=1,
-        )
+        ))
 
         # OpenAI implementation offers choice between convolution for skip connections &
         # up or down sample, but lucidrains just uses 1x1 convolution
@@ -142,7 +155,15 @@ class MyResBlock(nn.Module):
         assert cond_w.shape == cond_b.shape
         assert cond_w.shape == (N, self.out_channels, 1, 1)
 
-        # TODO: QUESTION(3)
+        # > 2. We add one to the scale parameter so that the scale is centered around 1. 
+        # > This helps preserve the stddev of activations flowing through the model--important 
+        # > for training stability.
+
+        # My understanding: Think back to ResNet. If the optimal scale 
+        # (where scale == `1 + cond_w`) is the identity (e.g scale == 1), then
+        # `cond_w` will be optimized to 0. Generally in ML, you want data to be
+        # centered around 0 and normalized by the stdev, so this reminds of that
+        # NOTE: This could be totally wrong
         x = self.out_norm(x) * (1 + cond_w) + cond_b
         dbg["scale_shift_norm"] = x
         x = F.silu(x)
