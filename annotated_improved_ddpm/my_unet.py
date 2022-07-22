@@ -53,6 +53,7 @@ import torch as th
 # 1. What is the purpose of 1D / 3D convolutions?
 # 2. Why is GroupNorm done in float32?
 # 3. Why add 1 to scale shift? (My guess is that it prevents gradient issues?)
+# - DONE
 # 4. What is the purpose of `zero_module`?
 #   - Seems like it initializes the weights to 0; but isn't that bad?
 # 5. (for Abhi) Why do we use a set dimension for the positional encodings & then pass them through a MLP?
@@ -93,7 +94,7 @@ class MyResBlock(nn.Module):
             in_channels=in_channels, out_channels=out_channels, kernel_size=3, padding=1
         )
 
-        # TODO: QUESTION(3)
+        # TODO: QUESTION(5)
         self.time_emb_linear = nn.Linear(
             in_features=time_emb_channels, out_features=2 * out_channels
         )
