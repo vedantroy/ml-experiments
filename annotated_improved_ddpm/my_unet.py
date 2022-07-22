@@ -66,10 +66,6 @@ import torch as th
 def normalization(channels):
     return nn.GroupNorm(num_groups=32, num_channels=channels)
 
-
-def conv_2d(in_c, out_c, **kwargs):
-    return nn.Conv2d(in_channels=in_c, out_channels=out_c, **kwargs)
-
 class MyResBlock(nn.Module):
     """
     This looks like the combination of 2 architectures:
@@ -106,15 +102,15 @@ class MyResBlock(nn.Module):
         # OpenAI implementation offers choice between convolution for skip connections &
         # up or down sample, but lucidrains just uses 1x1 convolution
         # No mention of improved performance in paper, so skip for simplicity
-        self.skip_projection = (
-            nn.Identity()
-            if in_channels == out_channels
-            else nn.Conv2d(
+        if in_channels == out_channels:
+            self.skip_projection = nn.Identity()
+        else:
+            self.skip_projection = nn.Conv2d(
                 in_channels=in_channels, out_channels=out_channels, kernel_size=1
             )
-        )
 
-    def forward(self, x, emb):
+    def forward(self, x, emb, dbg = None):
+        if dbg == None: dbg = {}
         N, in_C, H, W = x.shape
         assert in_C == self.in_channels
 
@@ -133,16 +129,22 @@ class MyResBlock(nn.Module):
 
         # Explanation: They convert the embedding into weight + bias
         # and skip passing it through group normalization
+        dbg["emb_in"] = emb
         emb = F.silu(emb)
         assert emb.shape == (N, self.time_emb_channels)
         emb = self.time_emb_linear(emb)
+        dbg["emb"] = emb
         assert emb.shape == (N, self.out_channels * 2)
         cond_w, cond_b = th.chunk(emb[..., None, None], 2, dim=1)
+        dbg["cond_w"], dbg["cond_b"] = cond_w, cond_b
         assert cond_w.shape == cond_b.shape
         assert cond_w.shape == (N, self.out_channels, 1, 1)
 
         # TODO: QUESTION(3)
         x = self.out_norm(x) * (1 + cond_w) + cond_b
+        dbg["scale_shift_norm"] = x
+        x = F.silu(x)
+        x = self.out_conv(x)
 
         # The OpenAI implementation has dropout right here, but also says
         #   > We then tried runs with dropout 0.1 and 0.3, and
@@ -152,8 +154,7 @@ class MyResBlock(nn.Module):
         #   > the best way to train, given what we know, is to early stop
         #   > and instead increase model size if we want to use add
         # so, skip dropout
-
-        return self.skip_projection(_x) + self.out_conv(x)
+        return self.skip_projection(_x) + x
 
 
 class UNet(nn.Module):

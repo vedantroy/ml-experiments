@@ -1,5 +1,5 @@
 import torch as th
-from unet import ResBlock
+from openai.unet import ResBlock
 from my_unet import MyResBlock
 
 th.manual_seed(42)
@@ -14,19 +14,30 @@ th.manual_seed(42)
 th.use_deterministic_algorithms(mode=True)
 
 
+def same_storage(x, y):
+    return x.storage().data_ptr() == y.storage().data_ptr()
+
+
 def get_shape(x):
     return x.weight.data.shape
 
+def clone_tensor(x):
+    return x.detach().clone()
 
 def copy_weight(x, y):
     xs, ys = get_shape(x), get_shape(y)
     if xs != ys:
         raise ValueError(f"{xs} != {ys}")
-    x.weight.data = y.weight.data.detach().clone().requires_grad_(True)
+    x.weight.data = clone_tensor(y.weight.data)
+    if hasattr(x, "bias"):
+        x.bias.data = clone_tensor(y.bias.data)
 
+def init_layer(x):
+    th.nn.init.kaiming_uniform_(x.weight)
+    if hasattr(x, "bias"):
+        th.nn.init.constant_(x.bias, 0)
 
 def test_res_block():
-    pass
     # OpenAI res block params
     res_block_params = dict(
         channels=128,
@@ -38,9 +49,6 @@ def test_res_block():
         dims=2,
         use_checkpoint=False,
     )
-
-    x = th.randn((2, 128, 64, 64)).type(th.float32).cuda()
-    t = th.randn((2, 512)).type(th.float32).cuda()
 
     block = ResBlock(**res_block_params).cuda()
     myblock = MyResBlock(
@@ -55,16 +63,27 @@ def test_res_block():
     copy_weight(myblock.out_norm, block.out_layers[0])
     copy_weight(myblock.out_conv, block.out_layers[3])
 
+    x = th.randn((2, 128, 64, 64)).type(th.float32).cuda()
+    t = th.randn((2, 512)).type(th.float32).cuda()
+
     with th.no_grad():
-        _x = x
-        print(_x[0, 0, 0, 0])
         expected = block(x, t)
         actual = myblock(x, t)
-        print(_x[0, 0, 0, 0])
         assert expected.shape == actual.shape
-        print(expected[0, 0, 0, 0])
-        print(actual[0, 0, 0, 0])
-        # print(expected)
+        assert not same_storage(x, expected)
+        assert not same_storage(x, actual)
+
+        assert (x == expected).all()
+        assert (x == actual).all()
+
+        init_layer(block.out_layers[3])
+        copy_weight(myblock.out_conv, block.out_layers[3])
+
+        dbg_a = {}
+        dbg_b = {}
+        expected = block(x, t, dbg_a)
+        actual = myblock(x, t, dbg_b)
+        assert (expected == actual).all()
 
 
 test_res_block()

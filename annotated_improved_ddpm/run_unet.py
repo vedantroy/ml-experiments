@@ -1,6 +1,6 @@
 import torch as tch
 
-from unet import UNetModel
+from openai.unet import UNetModel
 
 # These are parameters I copied by doing `print(...)`
 # in the original repo

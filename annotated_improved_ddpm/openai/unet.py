@@ -7,8 +7,8 @@ import torch as th
 import torch.nn as nn
 import torch.nn.functional as F
 
-from fp16_util import convert_module_to_f16, convert_module_to_f32
-from nn import (
+from .fp16_util import convert_module_to_f16, convert_module_to_f32
+from .nn import (
     SiLU,
     conv_nd,
     linear,
@@ -182,7 +182,7 @@ class ResBlock(TimestepBlock):
         else:
             self.skip_connection = conv_nd(dims, channels, self.out_channels, 1)
 
-    def forward(self, x, emb):
+    def forward(self, x, emb, dbg=None):
         """
         Apply the block to a Tensor, conditioned on a timestep embedding.
 
@@ -190,17 +190,20 @@ class ResBlock(TimestepBlock):
         :param emb: an [N x emb_channels] Tensor of timestep embeddings.
         :return: an [N x C x ...] Tensor of outputs.
         """
+        if dbg == None: dbg = {}
         return checkpoint(
-            self._forward, (x, emb), self.parameters(), self.use_checkpoint
+            self._forward, (x, emb, dbg), self.parameters(), self.use_checkpoint
         )
 
-    def _forward(self, x, emb):
+    def _forward(self, x, emb, dbg):
         N, C, H, W = x.shape
         assert emb.shape == (N, self.emb_channels)
 
         h = self.in_layers(x)
         assert h.shape == (N, self.out_channels, H, W)
+        dbg["emb_in"] = emb
         emb_out = self.emb_layers(emb).type(h.dtype)
+        dbg["emb"] = emb_out
         # Now I see why this is a loop
         # While the repository does diffusion on 2D data (images)
         # It could be done on higher dimensional data
@@ -213,8 +216,10 @@ class ResBlock(TimestepBlock):
             scale, shift = th.chunk(emb_out, 2, dim=1)
             assert scale.shape == shift.shape
             assert scale.shape == (N, self.out_channels, 1, 1)
+            dbg["cond_w"], dbg["cond_b"] = scale, shift
             h = out_norm(h) * (1 + scale) + shift
             assert h.shape == (N, self.out_channels, H, W)
+            dbg["scale_shift_norm"] = h
             # SilU + Dropout + conv_nd
             assert len(out_rest) == 3
             h = out_rest(h)

@@ -7,10 +7,17 @@ import math
 import torch as th
 import torch.nn as nn
 
+# For some reason, this breaks exact reproducibility
+# So, switch to torch's builtin SiLU
+
 # PyTorch 1.7 has SiLU, but we support PyTorch 1.5.
+# class SiLU(nn.Module):
+#     def forward(self, x):
+#         return x * th.sigmoid(x)
+
 class SiLU(nn.Module):
     def forward(self, x):
-        return x * th.sigmoid(x)
+        return nn.functional.silu(x)
 
 
 class GroupNorm32(nn.GroupNorm):
