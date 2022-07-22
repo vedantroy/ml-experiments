@@ -66,6 +66,7 @@ import torch as th
 def normalization(channels):
     return nn.GroupNorm(num_groups=32, num_channels=channels)
 
+
 class MyResBlock(nn.Module):
     """
     This looks like the combination of 2 architectures:
@@ -109,8 +110,9 @@ class MyResBlock(nn.Module):
                 in_channels=in_channels, out_channels=out_channels, kernel_size=1
             )
 
-    def forward(self, x, emb, dbg = None):
-        if dbg == None: dbg = {}
+    def forward(self, x, emb, dbg=None):
+        if dbg == None:
+            dbg = {}
         N, in_C, H, W = x.shape
         assert in_C == self.in_channels
 

@@ -21,8 +21,10 @@ def same_storage(x, y):
 def get_shape(x):
     return x.weight.data.shape
 
+
 def clone_tensor(x):
     return x.detach().clone()
+
 
 def copy_weight(x, y):
     xs, ys = get_shape(x), get_shape(y)
@@ -32,12 +34,15 @@ def copy_weight(x, y):
     if hasattr(x, "bias"):
         x.bias.data = clone_tensor(y.bias.data)
 
+
 def init_layer(x):
     th.nn.init.kaiming_uniform_(x.weight)
     if hasattr(x, "bias"):
         th.nn.init.constant_(x.bias, 0)
 
+
 def test_res_block():
+    # This test passes (check commit date)
     # OpenAI res block params
     res_block_params = dict(
         channels=128,
@@ -76,6 +81,9 @@ def test_res_block():
         assert (x == expected).all()
         assert (x == actual).all()
 
+        # During initialization, the last convolution layer is all 0s
+        # which makes the res block act like an identity layer
+        # So, do random initialization for more rigorous testing
         init_layer(block.out_layers[3])
         copy_weight(myblock.out_conv, block.out_layers[3])
 

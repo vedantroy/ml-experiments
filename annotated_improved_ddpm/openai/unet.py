@@ -19,6 +19,7 @@ from .nn import (
     checkpoint,
 )
 
+
 def print2(*args):
     if False:
         print(*args)
@@ -190,7 +191,8 @@ class ResBlock(TimestepBlock):
         :param emb: an [N x emb_channels] Tensor of timestep embeddings.
         :return: an [N x C x ...] Tensor of outputs.
         """
-        if dbg == None: dbg = {}
+        if dbg == None:
+            dbg = {}
         return checkpoint(
             self._forward, (x, emb, dbg), self.parameters(), self.use_checkpoint
         )
