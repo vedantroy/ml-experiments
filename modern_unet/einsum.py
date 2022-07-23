@@ -166,12 +166,11 @@ def multiple_matrix():
 
     assert (attn_loop == attn).all()
 
-
     x = np.array([[1, 2], [3, 4], [5, 6]])
     A, B = x.shape
     y = np.array([[5, 6, 7, 8], [9, 10, 11, 12]])
     C, D = y.shape
-    z_ein = np.einsum('ab,cd->ad', x, y)
+    z_ein = np.einsum("ab,cd->ad", x, y)
 
     z_loop = np.empty((A, D))
     for a in range(A):
@@ -191,11 +190,58 @@ def multiple_matrix():
     #   For each value at the c-th idx of the column
     #      muliply them together and add to the total
 
-    assert (z_loop == np.array([
-        [1 * 5 + 1 * 9 + 2 * 5 + 2 * 9, 1 * 6 + 1 * 10 + 2 * 6 + 2 * 10, 1 * 7 + 1 * 11 + 2 * 7 + 2 * 11, 1 * 8 + 1 * 12 + 2 * 8 + 2 * 12],
-        [3 * 5 + 3 * 9 + 4 * 5 + 4 * 9, 3 * 6 + 3 * 10 + 4 * 6 + 4 * 10, 3 * 7 + 3 * 11 + 4 * 7 + 4 * 11, 3 * 8 + 3 * 12 + 4 * 8 + 4 * 12],
-        [5 * 5 + 5 * 9 + 6 * 5 + 6 * 9, 5 * 6 + 5 * 10 + 6 * 6 + 6 * 10, 5 * 7 + 5 * 11 + 6 * 7 + 6 * 11, 5 * 8 + 5 * 12 + 6 * 8 + 6 * 12],
-    ])).all()
+    assert (
+        z_loop
+        == np.array(
+            [
+                [
+                    1 * 5 + 1 * 9 + 2 * 5 + 2 * 9,
+                    1 * 6 + 1 * 10 + 2 * 6 + 2 * 10,
+                    1 * 7 + 1 * 11 + 2 * 7 + 2 * 11,
+                    1 * 8 + 1 * 12 + 2 * 8 + 2 * 12,
+                ],
+                [
+                    3 * 5 + 3 * 9 + 4 * 5 + 4 * 9,
+                    3 * 6 + 3 * 10 + 4 * 6 + 4 * 10,
+                    3 * 7 + 3 * 11 + 4 * 7 + 4 * 11,
+                    3 * 8 + 3 * 12 + 4 * 8 + 4 * 12,
+                ],
+                [
+                    5 * 5 + 5 * 9 + 6 * 5 + 6 * 9,
+                    5 * 6 + 5 * 10 + 6 * 6 + 6 * 10,
+                    5 * 7 + 5 * 11 + 6 * 7 + 6 * 11,
+                    5 * 8 + 5 * 12 + 6 * 8 + 6 * 12,
+                ],
+            ]
+        )
+    ).all()
+
+    # The 2nd part of attention
+    # seq_len x seq_len matrix
+    seq_len, model_dim = 3, 4
+    attn = np.array([[1, 2, 3], [4, 5, 6], [7, 8, 9]])
+    assert attn.shape == (3, 3)
+    # normally, you'd do softmax on the attn
+
+    values = np.array([[1, 2, 3, 4], [5, 6, 7, 8], [9, 10, 11, 12]]).T
+    assert values.shape == (model_dim, seq_len)
+
+    z_ein = np.einsum("ts,cs->ct", attn, values)
+
+    T, S = attn.shape
+    C, S2 = values.shape
+    assert S == S2
+
+    z_loop = np.empty((C, T))
+    for t in range(T):
+        for c in range(C):
+            total = 0
+            for s in range(S):
+                total += attn[t, s] * values[c, s]
+            z_loop[c, t] = total
+
+    assert (z_loop == z_ein).all()
+
 
 single_matrix()
 multiple_matrix()
