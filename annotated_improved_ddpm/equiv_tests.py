@@ -120,7 +120,9 @@ def test_attention():
         assert (expected == actual).all()
 
         init_layer(myblock.proj_out)
+        copy_weight(block.qkv, myblock.qkv)
         copy_weight(block.proj_out, myblock.proj_out)
+        copy_weight(block.norm, myblock.norm)
 
         expected = block(x)
         actual = myblock(x)
