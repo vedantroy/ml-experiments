@@ -283,13 +283,21 @@ class QKVAttention(nn.Module):
         :return: an [N x C x T] tensor after attention.
         """
         ch = qkv.shape[1] // 3
+        N , seq_len = qkv.shape[0], qkv.shape[2]
+        # There's some odd thing in the docs, (maybe I was on an outdated version)
+        # where it says the 2nd param = the # of splits (when it's actually the size of a split)
         q, k, v = th.split(qkv, ch, dim=1)
+        assert q.shape == (N, ch, seq_len)
+        assert q.shape == k.shape and k.shape == v.shape
         scale = 1 / math.sqrt(math.sqrt(ch))
         weight = th.einsum(
             "bct,bcs->bts", q * scale, k * scale
         )  # More stable with f16 than dividing afterwards
         weight = th.softmax(weight.float(), dim=-1).type(weight.dtype)
-        return th.einsum("bts,bcs->bct", weight, v)
+        assert weight.shape == (N, seq_len, seq_len)
+        r = th.einsum("bts,bcs->bct", weight, v)
+        assert r.shape == (N, ch, seq_len)
+        return r
 
     @staticmethod
     def count_flops(model, _x, y):

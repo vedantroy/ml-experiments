@@ -1,6 +1,10 @@
+import math
+import io
+
 from torch import nn
 import torch.nn.functional as F
 import torch as th
+from einops import rearrange, reduce
 
 # OpenAI's diffusion model defaults
 # NOTE: some of these are NOT optimal--e.g., using linear instead of cosine schedule
@@ -65,6 +69,7 @@ import torch as th
 def normalization(channels):
     return nn.GroupNorm(num_groups=32, num_channels=channels)
 
+
 def zero_module(module):
     """
     Zero out the parameters of a module and return it.
@@ -72,6 +77,18 @@ def zero_module(module):
     for p in module.parameters():
         p.detach().zero_()
     return module
+
+
+def save_tensor(t, name):
+    buf = io.BytesIO()
+    th.save(t, buf)
+    buf_bytes = buf.getbuffer()
+    print(bytes(buf_bytes))
+    print(f"{name} = {buf_bytes}")
+    print(buf_bytes)
+    with open(name, "wb") as f:
+        f.write(buf_bytes)
+
 
 class MyResBlock(nn.Module):
     """
@@ -99,24 +116,28 @@ class MyResBlock(nn.Module):
 
         self.out_norm = normalization(out_channels)
 
-        # > 1. We zero the skip connections following Ho et al 2020. 
-        # > Like you note, this does initialize resblocks to the identity, 
-        # > which can actually help stabilize training (https://arxiv.org/abs/1901.09321). 
-        # > This doesn't actually prevent learning. In the first step, the gradient for 
-        # > most of the resblock is indeed zero, but in subsequent steps it will not be zero 
+        # > 1. We zero the skip connections following Ho et al 2020.
+        # > Like you note, this does initialize resblocks to the identity,
+        # > which can actually help stabilize training (https://arxiv.org/abs/1901.09321).
+        # > This doesn't actually prevent learning. In the first step, the gradient for
+        # > most of the resblock is indeed zero, but in subsequent steps it will not be zero
         # > because the zero'd out weight will itself no longer be zero.
-        
+
         # My Understanding: I was confused about the fact that zeroing out all the weights
         # will make the neurons update in the same direction. But I suspect convolutions are
         # a special case, since each of the value in the filter will have a different gradient
         # even if they are all initialized to the same value *because* each value in the filter
         # is applied to a different set of pixels in the input (I think; this my best guess).
-        self.out_conv = zero_module(nn.Conv2d(
-            in_channels=out_channels,
-            out_channels=out_channels,
-            kernel_size=3,
-            padding=1,
-        ))
+
+        # https://stats.stackexchange.com/questions/582809/how-does-fix-up-initialization-avoid-prevent-the-neurons-from-updating-in-the-ex
+        self.out_conv = zero_module(
+            nn.Conv2d(
+                in_channels=out_channels,
+                out_channels=out_channels,
+                kernel_size=3,
+                padding=1,
+            )
+        )
 
         # OpenAI implementation offers choice between convolution for skip connections &
         # up or down sample, but lucidrains just uses 1x1 convolution
@@ -155,16 +176,29 @@ class MyResBlock(nn.Module):
         emb = self.time_emb_linear(emb)
         dbg["emb"] = emb
         assert emb.shape == (N, self.out_channels * 2)
-        cond_w, cond_b = th.chunk(emb[..., None, None], 2, dim=1)
+        cond_w, cond_b = rearrange(
+            emb, "b (split c h w) -> split b c h w", split=2, h=1, w=1
+        )
+        # emb = rearrange(emb, "b (c h w) -> b c h w", w=1, h=1)
+        # This is incorrect, why?
+        # Well, b is coming 1st which means cond_w, cond_b are being extracted
+        # from the batch dimension
+        # Correct
+        # c_e1, c_e2 = rearrange(b_t, "b (split c) h w -> b split c h w", split=2)
+        # cond_w, cond_b = rearrange(emb, "b (split c) ... -> split b c ...", split=2)
+        # Pure pytorch alternative is
+        # ```
+        # cond_w, cond_b = th.chunk(emb[..., None, None], 2, dim=1)
+        # ```
         dbg["cond_w"], dbg["cond_b"] = cond_w, cond_b
         assert cond_w.shape == cond_b.shape
         assert cond_w.shape == (N, self.out_channels, 1, 1)
 
-        # > 2. We add one to the scale parameter so that the scale is centered around 1. 
-        # > This helps preserve the stddev of activations flowing through the model--important 
+        # > 2. We add one to the scale parameter so that the scale is centered around 1.
+        # > This helps preserve the stddev of activations flowing through the model--important
         # > for training stability.
 
-        # My understanding: Think back to ResNet. If the optimal scale 
+        # My understanding: Think back to ResNet. If the optimal scale
         # (where scale == `1 + cond_w`) is the identity (e.g scale == 1), then
         # `cond_w` will be optimized to 0. Generally in ML, you want data to be
         # centered around 0 and normalized by the stdev, so this reminds of that
@@ -184,6 +218,46 @@ class MyResBlock(nn.Module):
         # so, skip dropout
         return self.skip_projection(_x) + x
 
+
+class MyAttentionBlock(nn.Module):
+    def __init__(self):
+        pass
+
+    def forward(self):
+        pass
+
+class MyQKVAttention(nn.Module):
+    def forward(self, qkv):
+        N, triple_dim, seq = qkv.shape
+        dim = triple_dim // 3
+        q, k, v = reduce(qkv, 'b (split triple_dim) s -> split b triple_dim s', split=3)
+
+        # normally you scale by 1/sqrt(d_k)
+        # (in this d_k == dim)
+        # but, OpenAI says scale before multiplying instead of dividing after
+        scale = 1 / math.sqrt(math.sqrt(dim))
+        # einops doesn't implement einsum in stable yet :(
+
+        # a tip for following/understanding einsum:
+        # in this case, we know the output will be a seq x seq matrix
+        # so increment the last index (t), and follow the result
+        # you know the 1st row will be the attention for all (0, x) pairs
+        attn = th.einsum('bcs,bct->bst', q * scale, k * scale)
+        attn = F.softmax(attn, dim=2)
+        # How I wrote this (it took me 30 mins to write this explanation):
+        # - b__,b__->b__ (batch is same)
+        # - b_t,b_t->b__
+        # (we dot a row of attention matrix with row of values matrix)
+        #  dot product means nothing no index in final column
+        # - b_t,bdt->bd_
+        # We know the output has d_model (dim) rows
+        # Fix the remaining parameter @ 0
+        # As we go down the 1st column of the output, we see
+        # we are multiplying the first row of attn by the 1st row of v
+        # and then by the 2nd row and so on
+        # - bst,bdt->bds
+        # Fill in the last parameter
+        return th.einsum('bst,bdt->bds', attn, v)
 
 class UNet(nn.Module):
     def __init__(self):
