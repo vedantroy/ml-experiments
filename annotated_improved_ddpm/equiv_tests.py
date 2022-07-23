@@ -1,6 +1,6 @@
 import torch as th
-from openai.unet import ResBlock
-from my_unet import MyResBlock
+from openai.unet import QKVAttention, ResBlock
+from my_unet import MyQKVAttention, MyResBlock
 
 th.manual_seed(42)
 # You will also need to set the env var
@@ -95,3 +95,20 @@ def test_res_block():
 
 
 test_res_block()
+
+def test_qkv():
+    block = QKVAttention().cuda()
+    myblock = MyQKVAttention().cuda()
+
+
+    with th.no_grad():
+        seq_len = 64 * 64
+        model_dim = 128
+        x = th.randn((2, 3 * model_dim, seq_len)).type(th.float32).cuda()
+        y = block(x)
+        y2 = myblock(x)
+        assert (y == y2).all()
+
+
+test_res_block()
+test_qkv()

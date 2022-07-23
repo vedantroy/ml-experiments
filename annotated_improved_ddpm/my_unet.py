@@ -4,7 +4,7 @@ import io
 from torch import nn
 import torch.nn.functional as F
 import torch as th
-from einops import rearrange, reduce
+from einops import rearrange
 
 # OpenAI's diffusion model defaults
 # NOTE: some of these are NOT optimal--e.g., using linear instead of cosine schedule
@@ -230,7 +230,7 @@ class MyQKVAttention(nn.Module):
     def forward(self, qkv):
         N, triple_dim, seq = qkv.shape
         dim = triple_dim // 3
-        q, k, v = reduce(qkv, 'b (split triple_dim) s -> split b triple_dim s', split=3)
+        q, k, v = rearrange(qkv, 'b (split dim) s -> split b dim s', split=3)
 
         # normally you scale by 1/sqrt(d_k)
         # (in this d_k == dim)
@@ -248,7 +248,7 @@ class MyQKVAttention(nn.Module):
         # - b__,b__->b__ (batch is same)
         # - b_t,b_t->b__
         # (we dot a row of attention matrix with row of values matrix)
-        #  dot product means nothing no index in final column
+        #  dot product means no index in final column
         # - b_t,bdt->bd_
         # We know the output has d_model (dim) rows
         # Fix the remaining parameter @ 0
