@@ -1,6 +1,6 @@
 import torch as th
-from openai.unet import QKVAttention, ResBlock
-from my_unet import MyQKVAttention, MyResBlock
+from openai.unet import AttentionBlock, QKVAttention, ResBlock
+from my_unet import MyQKVAttention, MyResBlock, MyAttentionBlock
 
 th.manual_seed(42)
 # You will also need to set the env var
@@ -93,13 +93,9 @@ def test_res_block():
         actual = myblock(x, t, dbg_b)
         assert (expected == actual).all()
 
-
-test_res_block()
-
 def test_qkv():
     block = QKVAttention().cuda()
     myblock = MyQKVAttention().cuda()
-
 
     with th.no_grad():
         seq_len = 64 * 64
@@ -109,6 +105,28 @@ def test_qkv():
         y2 = myblock(x)
         assert (y == y2).all()
 
+def test_attention():
+    channels = 512
+    block = AttentionBlock(channels, num_heads=2).cuda()
+    myblock = MyAttentionBlock(channels, num_heads=2).cuda()
 
+    x = th.randn((2, channels, 8, 8)).cuda()
+
+    with th.no_grad():
+        expected = block(x)
+        actual = myblock(x)
+        # This will be trivially true, since we initialize
+        # the last convolution to all 0s
+        assert (expected == actual).all()
+
+        init_layer(myblock.proj_out)
+        copy_weight(block.proj_out, myblock.proj_out)
+
+        expected = block(x)
+        actual = myblock(x)
+        assert expected.shape == actual.shape
+        assert (expected == actual).all()
+    
 test_res_block()
 test_qkv()
+test_attention()

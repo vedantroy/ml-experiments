@@ -1,7 +1,7 @@
 import math
 import io
 
-from torch import nn
+from torch import nn, zero_
 import torch.nn.functional as F
 import torch as th
 from einops import rearrange
@@ -219,13 +219,6 @@ class MyResBlock(nn.Module):
         return self.skip_projection(_x) + x
 
 
-class MyAttentionBlock(nn.Module):
-    def __init__(self):
-        pass
-
-    def forward(self):
-        pass
-
 class MyQKVAttention(nn.Module):
     def forward(self, qkv):
         N, triple_dim, seq = qkv.shape
@@ -258,6 +251,28 @@ class MyQKVAttention(nn.Module):
         # - bst,bdt->bds
         # Fill in the last parameter
         return th.einsum('bst,bdt->bds', attn, v)
+
+class MyAttentionBlock(nn.Module):
+    def __init__(self, channels, num_heads):
+        super().__init__()
+        self.channels = channels
+        self.num_heads = num_heads
+        
+        self.norm = normalization(channels)
+        self.qkv = nn.Conv1d(channels, channels * 3, kernel_size=1)
+        self.attention = MyQKVAttention()
+        self.proj_out = zero_module(nn.Conv1d(channels, channels, kernel_size=1))
+
+    def forward(self, x):
+        _, _, H, W = x.shape
+        x = rearrange(x, "b c h w -> b c (h w)")
+        x = self.norm(x)
+        qkv = self.qkv(x)
+        qkv = rearrange(qkv, "b (heads c) s -> (b heads) c s", heads=self.num_heads)
+        h = self.attention(qkv)
+        h = rearrange(h, "(b heads) c s -> b (heads c) s", heads=self.num_heads)
+        h = self.proj_out(h)
+        return rearrange(x + h, "b c (h w) -> b c h w", h=H, w=W)
 
 class UNet(nn.Module):
     def __init__(self):

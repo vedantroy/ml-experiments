@@ -248,7 +248,9 @@ class AttentionBlock(nn.Module):
 
         self.norm = normalization(channels)
         self.qkv = conv_nd(1, channels, channels * 3, 1)
+        assert self.qkv.weight.data.shape == (channels * 3, channels, 1)
         self.attention = QKVAttention()
+        # QUESTION: Why is this final convolution needed?
         self.proj_out = zero_module(conv_nd(1, channels, channels, 1))
 
     def forward(self, x):
@@ -262,11 +264,23 @@ class AttentionBlock(nn.Module):
         # Flatten the input into a single sequence
         x = x.reshape(b, c, -1)
         assert x.shape == (b, c, H * W)
-        qkv = self.qkv(self.norm(x))
+        x = self.norm(x)
+        assert x.shape == (b, c, H * W)
+        qkv = self.qkv(x)
+        assert qkv.shape == (b, c * 3, H * W)
         qkv = qkv.reshape(b * self.num_heads, -1, qkv.shape[2])
+        assert qkv.shape == (b * self.num_heads, c * 3 / self.num_heads , H * W)
         h = self.attention(qkv)
+        # the 2nd dimension represents the re-averaged value vectors
+        # `c / self.num_heads` = the length of a value vector
+        assert h.shape == (b * self.num_heads, c / self.num_heads, H * W)
         h = h.reshape(b, -1, h.shape[-1])
+        # concatenate the value vectors
+        assert h.shape == (b, c, H * W)
         h = self.proj_out(h)
+        assert h.shape == (b, c, H * W)
+        # reshape back into H, W
+        # Also, this is a residual connection inside attention?
         return (x + h).reshape(b, c, *spatial)
 
 

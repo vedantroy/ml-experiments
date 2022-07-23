@@ -15,6 +15,8 @@ def test_conv_1d():
     ONE_FILTER = [1]
     TWO_FILTER = [2]
 
+    # Each filter is applied to 1 channel
+    # And you sum row-wise (combining results from both channels)
     filters = th.Tensor(
         [
             [ZERO_FILTER, ZERO_FILTER],
