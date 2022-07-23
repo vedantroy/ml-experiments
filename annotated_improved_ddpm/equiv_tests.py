@@ -1,6 +1,6 @@
 import torch as th
-from openai.unet import AttentionBlock, QKVAttention, ResBlock
-from my_unet import MyQKVAttention, MyResBlock, MyAttentionBlock
+from openai.unet import AttentionBlock, Downsample, QKVAttention, ResBlock, Upsample
+from my_unet import MyDownsample, MyQKVAttention, MyResBlock, MyAttentionBlock, MyUpsample
 
 th.manual_seed(42)
 # You will also need to set the env var
@@ -128,7 +128,27 @@ def test_attention():
         actual = myblock(x)
         assert expected.shape == actual.shape
         assert (expected == actual).all()
+
+def test_samples():
+    chan = 128
+    down = Downsample(chan, use_conv=True, dims=2).cuda()
+    my_down = MyDownsample(chan).cuda()
+    up = Upsample(chan, use_conv=True, dims=2).cuda()
+    my_up = MyUpsample(chan).cuda()
+
+    with th.no_grad():
+        x = th.randn((2, chan, 64, 64)).cuda()
+        copy_weight(down.op, my_down.conv)
+        expected = down(x)
+        actual = my_down(x)
+        assert (expected == actual).all()
+
+        copy_weight(up.conv, my_up.conv)
+        expected = up(x)
+        actual = my_up(x)
+        assert (expected == actual).all()
     
 test_res_block()
 test_qkv()
 test_attention()
+test_samples()

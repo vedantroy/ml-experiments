@@ -274,6 +274,27 @@ class MyAttentionBlock(nn.Module):
         h = self.proj_out(h)
         return rearrange(x + h, "b c (h w) -> b c h w", h=H, w=W)
 
+class MyUpsample(nn.Module):
+    def __init__(self, channels):
+        super().__init__()
+        self.channels = channels
+        self.conv = nn.Conv2d(channels, channels, 3, padding=1)
+
+    def forward(self, x):
+        assert self.channels == x.shape[1]
+        y = F.interpolate(x, scale_factor=2, mode="nearest")
+        y = self.conv(y)
+        return y
+
+class MyDownsample(nn.Module):
+    def __init__(self, channels):
+        super().__init__()
+        self.channels = channels
+        self.conv = nn.Conv2d(channels, channels, kernel_size=3, stride=2, padding=1)
+
+    def forward(self, x):
+        return self.conv(x)
+
 class UNet(nn.Module):
     def __init__(self):
         # > The downsampling stack performs four steps of
