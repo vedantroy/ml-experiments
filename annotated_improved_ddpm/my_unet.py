@@ -223,7 +223,7 @@ class MyQKVAttention(nn.Module):
     def forward(self, qkv):
         N, triple_dim, seq = qkv.shape
         dim = triple_dim // 3
-        q, k, v = rearrange(qkv, 'b (split dim) s -> split b dim s', split=3)
+        q, k, v = rearrange(qkv, "b (split dim) s -> split b dim s", split=3)
 
         # normally you scale by 1/sqrt(d_k)
         # (in this d_k == dim)
@@ -235,7 +235,7 @@ class MyQKVAttention(nn.Module):
         # in this case, we know the output will be a seq x seq matrix
         # so increment the last index (t), and follow the result
         # you know the 1st row will be the attention for all (0, x) pairs
-        attn = th.einsum('bcs,bct->bst', q * scale, k * scale)
+        attn = th.einsum("bcs,bct->bst", q * scale, k * scale)
         attn = F.softmax(attn, dim=2)
         # How I wrote this (it took me 30 mins to write this explanation):
         # - b__,b__->b__ (batch is same)
@@ -250,14 +250,15 @@ class MyQKVAttention(nn.Module):
         # and then by the 2nd row and so on
         # - bst,bdt->bds
         # Fill in the last parameter
-        return th.einsum('bst,bdt->bds', attn, v)
+        return th.einsum("bst,bdt->bds", attn, v)
+
 
 class MyAttentionBlock(nn.Module):
     def __init__(self, channels, num_heads):
         super().__init__()
         self.channels = channels
         self.num_heads = num_heads
-        
+
         self.norm = normalization(channels)
         self.qkv = nn.Conv1d(channels, channels * 3, kernel_size=1)
         self.attention = MyQKVAttention()
@@ -274,6 +275,7 @@ class MyAttentionBlock(nn.Module):
         h = self.proj_out(h)
         return rearrange(x + h, "b c (h w) -> b c h w", h=H, w=W)
 
+
 class MyUpsample(nn.Module):
     def __init__(self, channels):
         super().__init__()
@@ -286,6 +288,7 @@ class MyUpsample(nn.Module):
         y = self.conv(y)
         return y
 
+
 class MyDownsample(nn.Module):
     def __init__(self, channels):
         super().__init__()
@@ -295,8 +298,9 @@ class MyDownsample(nn.Module):
     def forward(self, x):
         return self.conv(x)
 
+
 class UNet(nn.Module):
-    def __init__(self):
+    def __init__(self, in_channels, model_channels, out_channels):
         # > The downsampling stack performs four steps of
         # > downsampling, each with three residual blocks
         pass

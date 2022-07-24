@@ -22,6 +22,7 @@ model = UNetModel(
 )
 
 model = model.cuda()
+model.print_architecture()
 
 batch_size = 2
 # This was an actual input

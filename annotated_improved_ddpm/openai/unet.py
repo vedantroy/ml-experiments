@@ -1,6 +1,7 @@
 from abc import abstractmethod
 
 import math
+from sre_constants import ASSERT
 
 import numpy as np
 import torch as th
@@ -269,7 +270,7 @@ class AttentionBlock(nn.Module):
         qkv = self.qkv(x)
         assert qkv.shape == (b, c * 3, H * W)
         qkv = qkv.reshape(b * self.num_heads, -1, qkv.shape[2])
-        assert qkv.shape == (b * self.num_heads, c * 3 / self.num_heads , H * W)
+        assert qkv.shape == (b * self.num_heads, c * 3 / self.num_heads, H * W)
         h = self.attention(qkv)
         # the 2nd dimension represents the re-averaged value vectors
         # `c / self.num_heads` = the length of a value vector
@@ -297,7 +298,7 @@ class QKVAttention(nn.Module):
         :return: an [N x C x T] tensor after attention.
         """
         ch = qkv.shape[1] // 3
-        N , seq_len = qkv.shape[0], qkv.shape[2]
+        N, seq_len = qkv.shape[0], qkv.shape[2]
         # There's some odd thing in the docs, (maybe I was on an outdated version)
         # where it says the 2nd param = the # of splits (when it's actually the size of a split)
         q, k, v = th.split(qkv, ch, dim=1)
@@ -416,6 +417,7 @@ class UNetModel(nn.Module):
         ch = model_channels
         ds = 1
         for level, mult in enumerate(channel_mult):
+            # print("adding res blocks")
             for _ in range(num_res_blocks):
                 layers = [
                     ResBlock(
@@ -429,6 +431,9 @@ class UNetModel(nn.Module):
                     )
                 ]
                 ch = mult * model_channels
+                # I'm not sure why they're not specifying attention by using the level
+                # Specifically, I don't really get the point of the ds parameter
+                print2(f"level {level}, ds={ds} attn={ds in attention_resolutions}")
                 if ds in attention_resolutions:
                     layers.append(
                         AttentionBlock(
@@ -438,11 +443,16 @@ class UNetModel(nn.Module):
                 self.input_blocks.append(TimestepEmbedSequential(*layers))
                 input_block_chans.append(ch)
             if level != len(channel_mult) - 1:
+                # print("adding downsample")
                 self.input_blocks.append(
                     TimestepEmbedSequential(Downsample(ch, conv_resample, dims=dims))
                 )
                 input_block_chans.append(ch)
                 ds *= 2
+                # print(ds)
+
+        # print(input_block_chans)
+        # print(ch)
 
         self.middle_block = TimestepEmbedSequential(
             ResBlock(
@@ -469,6 +479,7 @@ class UNetModel(nn.Module):
             for i in range(num_res_blocks + 1):
                 layers = [
                     ResBlock(
+                        # `+ input_block_chans.pop()` => represents the skip connection
                         ch + input_block_chans.pop(),
                         time_embed_dim,
                         dropout,
@@ -497,6 +508,56 @@ class UNetModel(nn.Module):
             SiLU(),
             zero_module(conv_nd(dims, model_channels, out_channels, 3, padding=1)),
         )
+
+    def print_architecture(self):
+        input_blocks = self.input_blocks
+        middle_block = self.middle_block
+        output_blocks = self.output_blocks
+
+        def print_timestep(seq):
+            for l in seq:
+                if isinstance(l, ResBlock):
+                    print(
+                        f"ResBlock(in={l.channels}, out={l.out_channels}, emb_channels={l.emb_channels})"
+                    )
+                elif isinstance(l, AttentionBlock):
+                    print(f"AttentionBlock(in={l.channels}, heads={l.num_heads})")
+                elif isinstance(l, nn.Conv2d):
+                    print(f"Conv2d(in={l.in_channels}, out={l.out_channels})")
+                elif isinstance(l, Downsample):
+                    print(f"Downsample(in={l.channels})")
+                    print("\n")
+                elif isinstance(l, Upsample):
+                    print(f"Upsample(in={l.channels})")
+                    print("\n")
+                else:
+                    print("Unknown layer ...")
+
+        def print_blocks(x):
+            if isinstance(x, TimestepEmbedSequential):
+                print_timestep(x)
+            elif isinstance(x, nn.Sequential):
+                for l in x:
+                    if isinstance(l, nn.GroupNorm) or isinstance(l, SiLU):
+                        continue
+                    elif isinstance(l, nn.Conv2d):
+                        print(f"Conv2d(in={l.in_channels}, out={l.out_channels})")
+                    else:
+                        print("Unknown layer ...")
+            else:
+                for seq in x:
+                    assert isinstance(seq, TimestepEmbedSequential)
+                    print_timestep(seq)
+
+        print("INPUT BLOCKS:")
+        print_blocks(input_blocks)
+        print("\n\nMIDDLE BLOCKS:")
+        print_blocks(middle_block)
+        print("\n\nOUTPUT BLOCKS:")
+        print_blocks(output_blocks)
+        print("\n\nOUT:")
+        print_blocks(self.out)
+        print("\n\n")
 
     def convert_to_fp16(self):
         """
@@ -544,16 +605,26 @@ class UNetModel(nn.Module):
             assert y.shape == (x.shape[0],)
             emb = emb + self.label_emb(y)
 
+        def print_dims(x):
+            _, _, H, W = x.shape
+            print(f"{tuple(x.shape)} -> {H}x{W}")
+
         h = x.type(self.inner_dtype)
+        print_dims(h)
         for module in self.input_blocks:
             h = module(h, emb)
+            print_dims(h)
             hs.append(h)
         h = self.middle_block(h, emb)
+        print_dims(h)
         for module in self.output_blocks:
             cat_in = th.cat([h, hs.pop()], dim=1)
             h = module(cat_in, emb)
+            print_dims(h)
         h = h.type(x.dtype)
-        return self.out(h)
+        r = self.out(h)
+        print_dims(r)
+        return r
 
     def get_feature_vectors(self, x, timesteps, y=None):
         """
