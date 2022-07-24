@@ -608,19 +608,24 @@ class UNetModel(nn.Module):
             print(f"{tuple(x.shape)} -> {H}x{W}")
 
         h = x.type(self.inner_dtype)
+        print("INPUT:")
         print_dims(h)
+        print("INNER:")
         for module in self.input_blocks:
             h = module(h, emb)
             print_dims(h)
             hs.append(h)
         h = self.middle_block(h, emb)
+        print("MIDDLE:")
         print_dims(h)
+        print("OUTER:")
         for module in self.output_blocks:
             cat_in = th.cat([h, hs.pop()], dim=1)
             h = module(cat_in, emb)
             print_dims(h)
         h = h.type(x.dtype)
         r = self.out(h)
+        print("OUTPUT:")
         print_dims(r)
         return r
 
