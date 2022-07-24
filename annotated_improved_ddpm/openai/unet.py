@@ -603,9 +603,12 @@ class UNetModel(nn.Module):
             assert y.shape == (x.shape[0],)
             emb = emb + self.label_emb(y)
 
-        def print_dims(x):
+        def print_dims(x, skip=None):
             _, _, H, W = x.shape
-            print(f"{tuple(x.shape)} -> {H}x{W}")
+            if skip == None:
+                print(f"{tuple(x.shape)} -> {H}x{W}")
+            else:
+                print(f"{tuple(x.shape)} -> {H}x{W} (skip = {tuple(skip.shape)})")
 
         h = x.type(self.inner_dtype)
         print("INPUT:")
@@ -620,9 +623,10 @@ class UNetModel(nn.Module):
         print_dims(h)
         print("OUTER:")
         for module in self.output_blocks:
-            cat_in = th.cat([h, hs.pop()], dim=1)
+            skip = hs.pop()
+            cat_in = th.cat([h, skip], dim=1)
             h = module(cat_in, emb)
-            print_dims(h)
+            print_dims(h, skip=skip)
         h = h.type(x.dtype)
         r = self.out(h)
         print("OUTPUT:")
