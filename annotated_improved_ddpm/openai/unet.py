@@ -525,11 +525,9 @@ class UNetModel(nn.Module):
                 elif isinstance(l, nn.Conv2d):
                     print(f"Conv2d(in={l.in_channels}, out={l.out_channels})")
                 elif isinstance(l, Downsample):
-                    print(f"Downsample(in={l.channels})")
-                    print("\n")
+                    print(f"Downsample(in={l.channels})\n")
                 elif isinstance(l, Upsample):
-                    print(f"Upsample(in={l.channels})")
-                    print("\n")
+                    print(f"Upsample(in={l.channels})\n")
                 else:
                     print("Unknown layer ...")
 
