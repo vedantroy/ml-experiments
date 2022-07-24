@@ -1,3 +1,22 @@
+# These are parameters I copied by doing `print(...)`
+# in the original repo
+model = UNetModel(
+    in_channels=3,
+    model_channels=128,
+    out_channels=3,
+    num_res_blocks=3,
+    attention_resolutions=(4, 8),
+    dropout=0.0,
+    channel_mult=(1, 2, 3, 4),
+    conv_resample=True,
+    num_classes=None,
+    use_checkpoint=False,
+    num_heads=4,
+    num_heads_upsample=4,
+    # Except for this one, which I set to True
+    use_scale_shift_norm=True,
+)
+
 INPUT BLOCKS:
 Conv2d(in=3, out=128)
 ResBlock(in=128, out=128, emb_channels=512)
