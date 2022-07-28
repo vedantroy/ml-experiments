@@ -162,3 +162,5 @@ test_res_block()
 test_qkv()
 test_attention()
 test_samples()
+
+print('tests passed')
