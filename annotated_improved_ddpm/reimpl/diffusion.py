@@ -20,13 +20,17 @@ from nn import mean_flat
 
 # Question list:
 # 1. the clamp seems unnecessary?
+# 2. Why do we set 1 as the 1st alpha value? I notice this makes the 1st Beta be 0
+# are the betas indexed s.t betas[0] == represents the image before any diffusion process?
+# (this would make sense b/c if the 1st beta is 0, then there would be no variance)
+
 
 def cosine_betas(timesteps, s=0.008, max_beta=0.999):
     """
     Get B_t for the cosine schedule (eq 17 in [0])
 
     :param max_beta: "In practice, we clip B_t to be no larger than 0.999 to prevent
-                      singularities at the end of the diffusion process"
+                      singularities at the end of the diffusion process near t = T"
     :param s: "We use a small offset s to prevent B_t from being too small near t = 0"
     """
     # If we add noise twice, then there are 3 total states (0, 1, 2)
@@ -40,16 +44,18 @@ def cosine_betas(timesteps, s=0.008, max_beta=0.999):
     # TODO: In practice, this clamp just seems to clip the last value from 1 to 0.999
     return betas.clamp(0, max_beta)
 
+
 def extract_for_timesteps(x, timesteps, broadcast_shape):
     # This will most certainly need to be fixed later
     vals = x[timesteps]
     return vals
 
+
 class GaussianDiffusion:
-    def __init__(self, *, betas):
+    def __init__(self, betas):
         self.n_timesteps = betas.shape[0]
         alphas = 1 - betas
-        alphas_cumprod = th.cumprod(alphas)
+        alphas_cumprod = th.cumprod(alphas, dim=0)
 
         # TODO(verify): By prepending 1, the 1st beta is 0
         # This represents the initial image, which as a mean but no variance (since it's ground truth)
@@ -60,7 +66,7 @@ class GaussianDiffusion:
         ) * betas
 
         # (11) in [0]
-        self.posterior_mean_coef_x_0 = (alphas_cumprod_prev.sqrt() * betas) / (
+        self.posterior_mean_coef_x_0 = (th.sqrt(alphas_cumprod_prev) * betas) / (
             1 - alphas_cumprod
         )
         self.posterior_mean_coef_x_t = (alphas.sqrt() * (1 - alphas_cumprod_prev)) / (
@@ -70,17 +76,23 @@ class GaussianDiffusion:
         self.sqrt_alphas_cumprod = th.sqrt(alphas_cumprod)
         self.sqrt_one_minus_alphas_cumprod = th.sqrt((1 - alphas_cumprod))
 
-        # Used to calculate x_0
+        # Used to calculate the variance
         self.log_betas = th.log(betas)
-        log_posterior_variance = th.log(self.posterior_variance)
-        # TODO: Figure this out
-        self.log_posterior_variance_clipped = log_posterior_variance
+
+        # clipped to avoid log(0) == -inf
+        # In other words, posterior variance is 0 at the start of the diffusion chain
+        assert alphas_cumprod_prev[0] == 1 and self.posterior_variance[0] == 0
+
+        self.posterior_log_variance_clipped = th.log(
+            F.pad(self.posterior_variance[1:], (1, 0), value=self.posterior_variance[1])
+        )
+
         self.recip_sqrt_alphas_cumprod = 1 / th.sqrt(alphas_cumprod)
         # OpenAI code does:
         #     self.sqrt_recip_alphas_cumprod = np.sqrt(1. / self.alphas_cumprod)
         # which is same as this, since: sqrt(1/a) = 1/sqrt(a)
         self.sqrt_recip_alphas_cumprod_minus1 = th.sqrt((1 / alphas_cumprod) - 1)
-        assert "figure out log var clipping" and False
+        # assert "figure out log var clipping" and False
 
     # (12) in [0]
     def q_posterior_mean_variance(self, x_start, x_t, t):
@@ -157,7 +169,7 @@ class GaussianDiffusion:
             # Question: Why do we apply clamping before q_posterior?
             pred_x_0 = pred_x_0.clamp(-1, 1)
         pred_mean, _, _ = self.q_posterior_mean_variance(pred_x_0, x_t, t)
-        pred_log_var = self.model_v_to_variance(model_v, t)
+        pred_log_var = self.model_v_to_log_variance(model_v, t)
         return pred_mean, pred_log_var
 
     def training_losses(self, model, x_0, t):
@@ -171,6 +183,7 @@ class GaussianDiffusion:
         # model_v:
         # > our model outputs a vector `v` [...] and we turn this
         # > output into variances
+        # from [0]
         model_eps, model_v = rearrange(
             model_output, "B (split C) ... -> split B C ...", split=2, C=C
         )
@@ -179,7 +192,9 @@ class GaussianDiffusion:
         # calculate the variational lower bound
         true_mean, _, true_log_var_clipped = self.q_posterior_mean_variance(x_0, x_t, t)
 
-        pred_mean, pred_log_var = self.p_mean_variance(x_t, t, model_v, model_eps, threshold=False)
+        pred_mean, pred_log_var = self.p_mean_variance(
+            x_t, t, model_v, model_eps, threshold=False
+        )
 
         # > Along this same line of reasoning,
         # > we also apply a stop-gradient to the µθ(xt, t) output for the
@@ -187,7 +202,9 @@ class GaussianDiffusion:
         # > is still the main source of influence over µθ(xt, t)
         # from [0]
         frozen_mean = true_mean.detach()
-        vb_loss = self.vb_loss(frozen_mean, true_log_var_clipped, pred_mean, pred_log_var)
+        vb_loss = self.vb_loss(
+            frozen_mean, true_log_var_clipped, pred_mean, pred_log_var
+        )
 
         # > For our experiments, we set λ = 0.001 to prevent L_vlb from
         # > overwhelming L_simple
