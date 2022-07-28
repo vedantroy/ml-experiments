@@ -74,6 +74,9 @@ class GaussianDiffusion:
         alphas = 1 - betas
         alphas_cumprod = th.cumprod(alphas, dim=0)
 
+        def check(x):
+            assert x.shape == (self.n_timesteps,)
+
         # TODO(verify): By prepending 1, the 1st beta is 0
         # This represents the initial image, which as a mean but no variance (since it's ground truth)
         alphas_cumprod_prev = F.pad(alphas_cumprod[:-1], (1, 0), value=1.0)
@@ -83,9 +86,11 @@ class GaussianDiffusion:
             self.posterior_mean_coef_x_0 = f32((th.sqrt(alphas_cumprod_prev) * betas) / (
                 1 - alphas_cumprod
             ))
+            check(self.posterior_mean_coef_x_0)
             self.posterior_mean_coef_x_t = f32((th.sqrt(alphas) * (1 - alphas_cumprod_prev)) / (
                 1 - alphas_cumprod
             ))
+            check(self.posterior_mean_coef_x_t)
 
         def setup_q_posterior_log_variance():
             # (10 in [0])
@@ -98,18 +103,23 @@ class GaussianDiffusion:
             self.posterior_log_variance_clipped = f32(th.log(
                 F.pad(posterior_variance[1:], (1, 0), value=posterior_variance[1])
             ))
+            check(self.posterior_log_variance_clipped)
 
         def setup_q_sample():
             # (9 in [0]) -- used to go forward in the diffusion process
             self.sqrt_alphas_cumprod = f32(th.sqrt(alphas_cumprod))
+            check(self.sqrt_alphas_cumprod)
             self.sqrt_one_minus_alphas_cumprod = f32(th.sqrt((1 - alphas_cumprod)))
+            check(self.sqrt_one_minus_alphas_cumprod)
 
         def setup_predict_x0():
             # OpenAI code does:
             #     self.sqrt_recip_alphas_cumprod = np.sqrt(1. / self.alphas_cumprod)
             # which is same as this, since: sqrt(1/a) = 1/sqrt(a)
             self.recip_sqrt_alphas_cumprod = f32(1.0 / th.sqrt(alphas_cumprod))
+            check(self.recip_sqrt_alphas_cumprod)
             self.sqrt_recip_alphas_cumprod_minus1 = f32(th.sqrt((1 / alphas_cumprod) - 1))
+            check(self.sqrt_recip_alphas_cumprod_minus1)
 
         setup_q_sample()
         setup_q_posterior_mean()
@@ -118,6 +128,7 @@ class GaussianDiffusion:
 
         # Used to calculate the variance from the model prediction
         self.log_betas = f32(th.log(betas))
+        check(self.log_betas)
 
 
     # (12) in [0]
@@ -137,6 +148,7 @@ class GaussianDiffusion:
             for_timesteps(self.posterior_mean_coef_x_0, t, x_start.shape) * x_start
             + for_timesteps(self.posterior_mean_coef_x_t, t, x_start.shape) * x_t
         )
+        assert mean.shape == x_start.shape and x_start.shape == x_t.shape
         return mean
 
     def q_sample(self, x_0, t, noise):
@@ -158,6 +170,7 @@ class GaussianDiffusion:
 
         mean = for_timesteps(self.sqrt_alphas_cumprod, t, shape) * x_0
         var = for_timesteps(self.sqrt_one_minus_alphas_cumprod, t, shape)
+        assert mean.shape[0] == N and var.shape[0] == N
         return mean + var * noise
 
     def predict_x0_from_eps(self, x_t, t, eps):
