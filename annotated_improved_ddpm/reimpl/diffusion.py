@@ -6,8 +6,8 @@ from einops import rearrange
 import math
 
 # TODO: Re-implement these
-from reimpl.losses import discretized_gaussian_log_likelihood, normal_kl
-from reimpl.nn import mean_flat
+from losses import discretized_gaussian_log_likelihood, normal_kl
+from nn import mean_flat
 
 # Simple-ish Gaussian Diffusion
 # Notes:
@@ -18,10 +18,12 @@ from reimpl.nn import mean_flat
 # - Estimates the noise (epsilon)
 # - Uses a hybrid objective (L_simple + L_vlb) without resampling
 
+# Question list:
+# 1. the clamp seems unnecessary?
 
 def cosine_betas(timesteps, s=0.008, max_beta=0.999):
     """
-    Get B_t for the cosine schedule (eq 17)
+    Get B_t for the cosine schedule (eq 17 in [0])
 
     :param max_beta: "In practice, we clip B_t to be no larger than 0.999 to prevent
                       singularities at the end of the diffusion process"
@@ -34,8 +36,9 @@ def cosine_betas(timesteps, s=0.008, max_beta=0.999):
     alphas_cumprod = f_t / f_t[0]
     alphas_cumprod_t = alphas_cumprod[1:]
     alphas_cumprod_t_minus_1 = alphas_cumprod[:-1]
-    return 1 - (alphas_cumprod_t / alphas_cumprod_t_minus_1)
-
+    betas = 1 - (alphas_cumprod_t / alphas_cumprod_t_minus_1)
+    # TODO: In practice, this clamp just seems to clip the last value from 1 to 0.999
+    return betas.clamp(0, max_beta)
 
 def extract_for_timesteps(x, timesteps, broadcast_shape):
     # This will most certainly need to be fixed later
