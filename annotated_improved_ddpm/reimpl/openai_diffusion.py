@@ -192,9 +192,18 @@ class GaussianDiffusion:
         if noise is None:
             noise = th.randn_like(x_start)
         assert noise.shape == x_start.shape
+
+        #print("q_sample types:", self.sqrt_alphas_cumprod.type(), noise.type())
+
+        i1 = _extract_into_tensor(self.sqrt_alphas_cumprod, t, x_start.shape)
+        i2 = _extract_into_tensor(self.sqrt_one_minus_alphas_cumprod, t, x_start.shape)
+
+        #print("q_sample types: ", i1.type(), i2.type(), noise.type())
+
+        #print(x_start.shape, i1.shape, i2.shape)
         return (
-            _extract_into_tensor(self.sqrt_alphas_cumprod, t, x_start.shape) * x_start
-            + _extract_into_tensor(self.sqrt_one_minus_alphas_cumprod, t, x_start.shape)
+             i1 * x_start
+            + i2 
             * noise
         )
 
@@ -206,9 +215,15 @@ class GaussianDiffusion:
 
         """
         assert x_start.shape == x_t.shape
+
+        print(x_start.shape)
+        i1 = _extract_into_tensor(self.posterior_mean_coef1, t, x_t.shape)
+        print(i1.shape)
+        i2 = _extract_into_tensor(self.posterior_mean_coef2, t, x_t.shape)
+        print(i2.shape)
         posterior_mean = (
-            _extract_into_tensor(self.posterior_mean_coef1, t, x_t.shape) * x_start
-            + _extract_into_tensor(self.posterior_mean_coef2, t, x_t.shape) * x_t
+             i1 * x_start
+            + i2 * x_t
         )
         posterior_variance = _extract_into_tensor(self.posterior_variance, t, x_t.shape)
         posterior_log_variance_clipped = _extract_into_tensor(

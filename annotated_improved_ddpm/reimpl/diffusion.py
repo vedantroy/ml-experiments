@@ -45,10 +45,15 @@ def cosine_betas(timesteps, s=0.008, max_beta=0.999):
     return betas.clamp(0, max_beta)
 
 
-def extract_for_timesteps(x, timesteps, broadcast_shape):
-    # This will most certainly need to be fixed later
-    vals = x[timesteps]
-    return vals
+#def extract_for_timesteps(x, timesteps, broadcast_shape):
+#    # This will most certainly need to be fixed later
+#    vals = x[timesteps]
+#    return vals
+
+def extract_for_timesteps(a, t, x_shape):
+    b, *_ = t.shape
+    out = a.gather(-1, t)
+    return out.reshape(b, *((1,) * (len(x_shape) - 1)))
 
 
 class GaussianDiffusion:
@@ -57,42 +62,43 @@ class GaussianDiffusion:
         alphas = 1 - betas
         alphas_cumprod = th.cumprod(alphas, dim=0)
 
+        f32 = lambda x: x.to(th.float32)
+
         # TODO(verify): By prepending 1, the 1st beta is 0
         # This represents the initial image, which as a mean but no variance (since it's ground truth)
         alphas_cumprod_prev = F.pad(alphas_cumprod[:-1], (1, 0), value=1.0)
-        # (10) in [0]
-        self.posterior_variance = (
+
+        # (10 in [0])
+        self.posterior_variance = f32((
             (1 - alphas_cumprod_prev) / (1 - alphas_cumprod)
-        ) * betas
-
-        # (11) in [0]
-        self.posterior_mean_coef_x_0 = (th.sqrt(alphas_cumprod_prev) * betas) / (
+        ) * betas)
+        # (11 in [0])
+        self.posterior_mean_coef_x_0 = f32((th.sqrt(alphas_cumprod_prev) * betas) / (
             1 - alphas_cumprod
-        )
-        self.posterior_mean_coef_x_t = (alphas.sqrt() * (1 - alphas_cumprod_prev)) / (
+        ))
+        self.posterior_mean_coef_x_t = f32((alphas.sqrt() * (1 - alphas_cumprod_prev)) / (
             1 - alphas_cumprod
-        )
+        ))
 
-        self.sqrt_alphas_cumprod = th.sqrt(alphas_cumprod)
-        self.sqrt_one_minus_alphas_cumprod = th.sqrt((1 - alphas_cumprod))
+        # (9 in [0]) -- used to go forward in the diffusion process
+        self.sqrt_alphas_cumprod = f32(th.sqrt(alphas_cumprod))
+        self.sqrt_one_minus_alphas_cumprod = f32(th.sqrt((1 - alphas_cumprod)))
 
-        # Used to calculate the variance
-        self.log_betas = th.log(betas)
-
+        # Used to calculate the variance from the model prediction
+        self.log_betas = f32(th.log(betas))
         # clipped to avoid log(0) == -inf
         # In other words, posterior variance is 0 at the start of the diffusion chain
         assert alphas_cumprod_prev[0] == 1 and self.posterior_variance[0] == 0
-
-        self.posterior_log_variance_clipped = th.log(
+        self.posterior_log_variance_clipped = f32(th.log(
             F.pad(self.posterior_variance[1:], (1, 0), value=self.posterior_variance[1])
-        )
+        ))
 
-        self.recip_sqrt_alphas_cumprod = 1 / th.sqrt(alphas_cumprod)
+        # Used to predict x_0 from eps & x_t
         # OpenAI code does:
         #     self.sqrt_recip_alphas_cumprod = np.sqrt(1. / self.alphas_cumprod)
         # which is same as this, since: sqrt(1/a) = 1/sqrt(a)
-        self.sqrt_recip_alphas_cumprod_minus1 = th.sqrt((1 / alphas_cumprod) - 1)
-        # assert "figure out log var clipping" and False
+        self.recip_sqrt_alphas_cumprod = f32(1.0 / th.sqrt(alphas_cumprod))
+        self.sqrt_recip_alphas_cumprod_minus1 = f32(th.sqrt((1 / alphas_cumprod) - 1))
 
     # (12) in [0]
     def q_posterior_mean_variance(self, x_start, x_t, t):
@@ -126,10 +132,11 @@ class GaussianDiffusion:
 
         N = x_0.shape[0]
         assert t.shape == (N,)
+        shape = x_0.shape
 
         # (9) in [0]
-        mean = extract_for_timesteps(self.sqrt_alphas_cumprod, t, None) * x_0
-        var = extract_for_timesteps(self.sqrt_one_minus_alphas_cumprod, t, None)
+        mean = extract_for_timesteps(self.sqrt_alphas_cumprod, t, shape) * x_0
+        var = extract_for_timesteps(self.sqrt_one_minus_alphas_cumprod, t, shape)
         return mean + var * noise
 
     def predict_x0_from_eps(self, x_t, t, eps):
