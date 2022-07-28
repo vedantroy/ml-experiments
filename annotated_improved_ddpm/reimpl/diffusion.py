@@ -187,12 +187,12 @@ class GaussianDiffusion:
         pred_log_var = self.model_v_to_log_variance(model_v, t)
         return pred_mean, pred_log_var
 
-    def training_losses(self, model, x_0, t):
-        noise = th.randn_like(x_0)
-        x_t = self.q_sample(x_0, t, noise)
+    def training_losses(self, model_output, x_0, x_t, t, noise):
+        # noise = th.randn_like(x_0)
+        # x_t = self.q_sample(x_0, t, noise)
 
         C = x_0.shape[1]
-        model_output = model(x_t, t)
+        # model_output = model(x_t, t)
 
         # model_eps: the model is predicting the noise
         # model_v:
@@ -219,7 +219,12 @@ class GaussianDiffusion:
         # from [0]
         frozen_mean = true_mean.detach()
         vb_loss = self.vb_loss(
-            frozen_mean, true_log_var_clipped, pred_mean, pred_log_var
+            x_0=x_0,
+            true_mean=frozen_mean,
+            true_log_var=true_log_var_clipped,
+            pred_mean=pred_mean,
+            pred_log_var=pred_log_var,
+            t=t,
         )
 
         # > For our experiments, we set λ = 0.001 to prevent L_vlb from

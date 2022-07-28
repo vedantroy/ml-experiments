@@ -87,9 +87,44 @@ def test_gaussian_diffusion_funcs():
     model_eps, model_v = th.chunk(fake_model_out, 2, dim=1)
     my_pred_mean, my_pred_var = my_gd.p_mean_variance(x_t, t, model_v, model_eps, threshold=False)
 
+    # to prove it's actually working!
+    # pred_var[0][0][0][0] += 1e-3
     testing.assert_close(pred_var, my_pred_var)
     testing.assert_close(pred_mean, my_pred_mean)
 
     print("test_gaussian_diffusion_funcs passed")
 
 test_gaussian_diffusion_funcs()
+
+def test_gaussian_diffusion_e2e():
+    T = 4000
+    betas = cosine_betas(T)
+    gd = GaussianDiffusion(
+        betas=betas,
+        model_mean_type=ModelMeanType.EPSILON,
+        model_var_type=ModelVarType.LEARNED_RANGE,
+        # this represents the MSE loss + VLB loss w/ VLB loss scaled down by 1000
+        loss_type=LossType.RESCALED_MSE,
+        rescale_timesteps=False,
+    )
+    my_gd = MyGaussianDiffusion(betas)
+
+    N, C, H, W = 2, 3, 64, 64
+
+    x_0 = th.randn((N, C, H, W))
+    noise = th.randn_like(x_0)
+    t =  th.tensor([295, 2253])
+
+    fake_output = th.randn((N, C * 2, H, W))
+
+    model = lambda *args, r=fake_output: r
+
+    losses = gd.training_losses(model, x_0, t, noise=noise)
+
+    x_t = my_gd.q_sample(x_0, t, noise)
+    my_losses = my_gd.training_losses(fake_output, x_0, x_t, t, noise)
+
+    testing.assert_close(losses["loss"], my_losses)
+    print("test_gaussian_diffusion_e2e passed")
+
+test_gaussian_diffusion_e2e()
