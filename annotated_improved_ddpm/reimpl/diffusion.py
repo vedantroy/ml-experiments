@@ -1,5 +1,3 @@
-import types
-
 import torch as th
 import torch.nn.functional as F
 from einops import rearrange
@@ -19,7 +17,7 @@ from nn import mean_flat
 # - Uses a hybrid objective (L_simple + L_vlb) without resampling
 
 # Question list:
-# 1. the clamp seems unnecessary?
+# 1. the beta clamp seems unnecessary?
 # 2. Why do we set 1 as the 1st alpha value? I notice this makes the 1st Beta be 0
 # are the betas indexed s.t betas[0] == represents the image before any diffusion process?
 # (this would make sense b/c if the 1st beta is 0, then there would be no variance)
@@ -44,8 +42,17 @@ def cosine_betas(timesteps, s=0.008, max_beta=0.999):
     # TODO: In practice, this clamp just seems to clip the last value from 1 to 0.999
     return betas.clamp(0, max_beta)
 
+def for_timesteps(a, t, broadcast_shape):
+    """
+    Extract values from a for each timestep
 
-def extract_for_timesteps(a, t, broadcast_shape):
+    :param a: (timesteps,)
+    :param t: (batch size,)
+    :param broadcast_shape: (batch size, ...)
+
+    :returns: (batch size, 1, 1, 1) where
+              the number of 1s corresponds to len(...)
+    """
     b, *_ = t.shape
 
     # `a` should always be a 1D tensor of
@@ -55,8 +62,8 @@ def extract_for_timesteps(a, t, broadcast_shape):
     # use `t` as an index tensor to extract values
     # at a given timestep
     out = a.gather(0, t)
-    # add dimensions until `out` is broadcastable
-    return out.reshape(b, *((1,) * (len(broadcast_shape) - 1)))
+    num_nonbatch_dims = len(broadcast_shape) - 1
+    return out.reshape(b, *((1,) * num_nonbatch_dims))
 
 def f32(x):
     return x.to(th.float32)
@@ -97,41 +104,45 @@ class GaussianDiffusion:
             self.sqrt_alphas_cumprod = f32(th.sqrt(alphas_cumprod))
             self.sqrt_one_minus_alphas_cumprod = f32(th.sqrt((1 - alphas_cumprod)))
 
+        def setup_predict_x0():
+            # OpenAI code does:
+            #     self.sqrt_recip_alphas_cumprod = np.sqrt(1. / self.alphas_cumprod)
+            # which is same as this, since: sqrt(1/a) = 1/sqrt(a)
+            self.recip_sqrt_alphas_cumprod = f32(1.0 / th.sqrt(alphas_cumprod))
+            self.sqrt_recip_alphas_cumprod_minus1 = f32(th.sqrt((1 / alphas_cumprod) - 1))
+
         setup_q_sample()
         setup_q_posterior_mean()
         setup_q_posterior_log_variance()
+        setup_predict_x0()
 
         # Used to calculate the variance from the model prediction
         self.log_betas = f32(th.log(betas))
 
-        # Used to predict x_0 from eps & x_t
-        # OpenAI code does:
-        #     self.sqrt_recip_alphas_cumprod = np.sqrt(1. / self.alphas_cumprod)
-        # which is same as this, since: sqrt(1/a) = 1/sqrt(a)
-        self.recip_sqrt_alphas_cumprod = f32(1.0 / th.sqrt(alphas_cumprod))
-        self.sqrt_recip_alphas_cumprod_minus1 = f32(th.sqrt((1 / alphas_cumprod) - 1))
 
     # (12) in [0]
     def q_posterior_mean(self, x_start, x_t, t):
         """
-        Calculate the mean and variance of the normal distribution q(x_{t-1}|x_t, x_0)
+        Calculate the mean of the normal distribution q(x_{t-1}|x_t, x_0)
+        From (12 in [0])
 
-        Use this to go BACKWARDS 1 step, given the current step
-        (12) in [0]
+        Use this to go BACKWARDS 1 step, given the current diffusion step
+        All parameters are batches
 
-        :param x_t: The result of the next step in the diffusion process (batch)
-        :param x_start: The initial image (batch)
-        :param t: The current timestep (batch)
+        :param x_t: The result of the next step in the diffusion process
+        :param x_start: The initial image
+        :param t: The current timestep
         """
         mean = (
-            extract_for_timesteps(self.posterior_mean_coef_x_0, t, x_start.shape) * x_start
-            + extract_for_timesteps(self.posterior_mean_coef_x_t, t, x_start.shape) * x_t
+            for_timesteps(self.posterior_mean_coef_x_0, t, x_start.shape) * x_start
+            + for_timesteps(self.posterior_mean_coef_x_t, t, x_start.shape) * x_t
         )
         return mean
 
     def q_sample(self, x_0, t, noise):
         """
         Diffuse the data for a given number of diffusion steps.
+        From (9 in [0])
 
         In other words, sample from q(x_t | x_0)
         Use this to go FORWARDS t steps, given the initial image
@@ -145,23 +156,32 @@ class GaussianDiffusion:
         assert t.shape == (N,)
         shape = x_0.shape
 
-        # (9) in [0]
-        mean = extract_for_timesteps(self.sqrt_alphas_cumprod, t, shape) * x_0
-        var = extract_for_timesteps(self.sqrt_one_minus_alphas_cumprod, t, shape)
+        mean = for_timesteps(self.sqrt_alphas_cumprod, t, shape) * x_0
+        var = for_timesteps(self.sqrt_one_minus_alphas_cumprod, t, shape)
         return mean + var * noise
 
     def predict_x0_from_eps(self, x_t, t, eps):
-        # predict x_0
-        # (re-arrange & simplify (9) in [0] to solve for x_0)
+        """
+        Predict x_0 given epsilon and x_t
+        From re-arranging and simplifying (9 in [0])
+
+        The result of this can be used in equation 11 to
+        calculate the mean of q(x_{t-1}|x_t,x_0)
+        """
         return (
-            x_t * extract_for_timesteps(self.recip_sqrt_alphas_cumprod, t, x_t.shape)
-            - extract_for_timesteps(self.sqrt_recip_alphas_cumprod_minus1, t, x_t.shape) * eps
+            x_t * for_timesteps(self.recip_sqrt_alphas_cumprod, t, x_t.shape)
+            - for_timesteps(self.sqrt_recip_alphas_cumprod_minus1, t, x_t.shape) * eps
         )
 
     def model_v_to_log_variance(self, v, t):
+        """
+        Convert the model's v vector to an interpolated variance
+        From (15 in [0])
+        """
+
         # Turn the model output into a variance (15) in [0]
-        min_log = extract_for_timesteps(self.posterior_log_variance_clipped, t, v.shape)
-        max_log = extract_for_timesteps(self.log_betas, t, v.shape)
+        min_log = for_timesteps(self.posterior_log_variance_clipped, t, v.shape)
+        max_log = for_timesteps(self.log_betas, t, v.shape)
 
         # Model outputs between [-1, 1] for [min_var, max_var]
         frac = (v + 1) / 2
@@ -180,8 +200,15 @@ class GaussianDiffusion:
         return th.where((t == 0), decoder_nll, kl)
 
     def p_mean_variance(self, x_t, t, model_v, model_eps, *, threshold):
-        # calculate x_0 from the predicted noise & use it to calculate
-        # the estimated mean and variance
+        """
+        Get the model's predicted mean and variance for the distribution
+        that predicts x_{t-1}
+
+        Do this by:
+        - predicting x_0 from epsilon
+        - using x_0 and x_t to predict the mean of q(x_{t-1}|x_t,x_0)
+        - turn the model's v vector into a variance
+        """
         pred_x_0 = self.predict_x0_from_eps(x_t, t, model_eps)
         if threshold:
             # Question: Why do we apply clamping before q_posterior?
@@ -191,11 +218,7 @@ class GaussianDiffusion:
         return pred_mean, pred_log_var
 
     def training_losses(self, model_output, x_0, x_t, t, noise):
-        # noise = th.randn_like(x_0)
-        # x_t = self.q_sample(x_0, t, noise)
-
         C = x_0.shape[1]
-        # model_output = model(x_t, t)
 
         # model_eps: the model is predicting the noise
         # model_v:
@@ -207,9 +230,8 @@ class GaussianDiffusion:
         )
         mse_loss = mean_flat((noise - model_eps) ** 2)
 
-        # calculate the variational lower bound
         true_mean  = self.q_posterior_mean(x_0, x_t, t)
-        true_log_var_clipped = extract_for_timesteps(self.posterior_log_variance_clipped, t, x_t.shape)
+        true_log_var_clipped = for_timesteps(self.posterior_log_variance_clipped, t, x_t.shape)
 
         pred_mean, pred_log_var = self.p_mean_variance(
             x_t, t, model_v, model_eps, threshold=False

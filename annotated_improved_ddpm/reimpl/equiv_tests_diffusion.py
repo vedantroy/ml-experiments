@@ -5,7 +5,7 @@ from openai_diffusion import (
     ModelVarType,
     LossType,
 )
-from diffusion import cosine_betas, GaussianDiffusion as MyGaussianDiffusion, extract_for_timesteps
+from diffusion import cosine_betas, GaussianDiffusion as MyGaussianDiffusion, for_timesteps
 
 import torch as th
 from torch import testing
@@ -81,7 +81,7 @@ def test_gaussian_diffusion_funcs():
 
     x_tm1, _, log_var = gd.q_posterior_mean_variance(x_0, x_t, t)
     my_x_tm1 = my_gd.q_posterior_mean(x_0, x_t, t)
-    my_log_var = extract_for_timesteps(my_gd.posterior_log_variance_clipped, t, x_tm1.shape)
+    my_log_var = for_timesteps(my_gd.posterior_log_variance_clipped, t, x_tm1.shape)
 
     # my extract_for_timesteps method returns a different shape
     # (relies on broadcasting instead of expanding dims)
