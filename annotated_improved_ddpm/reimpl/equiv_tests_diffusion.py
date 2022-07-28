@@ -72,10 +72,11 @@ def test_gaussian_diffusion_funcs():
     testing.assert_close(x_t, my_x_t)
 
     x_tm1, _, log_var = gd.q_posterior_mean_variance(x_0, x_t, t)
-    print(log_var.shape, x_tm1.shape)
     my_x_tm1 = my_gd.q_posterior_mean(x_0, x_t, t)
     my_log_var = extract_for_timesteps(my_gd.posterior_log_variance_clipped, t, x_tm1.shape)
 
+    # my extract_for_timesteps method returns a different shape
+    # (relies on broadcasting instead of expanding dims)
     assert (my_log_var == log_var).all()
     testing.assert_close(x_tm1, my_x_tm1)
 
