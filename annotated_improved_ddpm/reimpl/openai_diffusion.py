@@ -216,11 +216,11 @@ class GaussianDiffusion:
         """
         assert x_start.shape == x_t.shape
 
-        print(x_start.shape)
+        # print(x_start.shape)
         i1 = _extract_into_tensor(self.posterior_mean_coef1, t, x_t.shape)
-        print(i1.shape)
+        #print(i1.shape)
         i2 = _extract_into_tensor(self.posterior_mean_coef2, t, x_t.shape)
-        print(i2.shape)
+        #print(i2.shape)
         posterior_mean = (
              i1 * x_start
             + i2 * x_t

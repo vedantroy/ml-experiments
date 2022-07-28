@@ -55,6 +55,8 @@ def extract_for_timesteps(a, t, x_shape):
     out = a.gather(-1, t)
     return out.reshape(b, *((1,) * (len(x_shape) - 1)))
 
+def f32(x):
+    return x.to(th.float32)
 
 class GaussianDiffusion:
     def __init__(self, betas):
@@ -62,36 +64,42 @@ class GaussianDiffusion:
         alphas = 1 - betas
         alphas_cumprod = th.cumprod(alphas, dim=0)
 
-        f32 = lambda x: x.to(th.float32)
-
         # TODO(verify): By prepending 1, the 1st beta is 0
         # This represents the initial image, which as a mean but no variance (since it's ground truth)
         alphas_cumprod_prev = F.pad(alphas_cumprod[:-1], (1, 0), value=1.0)
 
-        # (10 in [0])
-        self.posterior_variance = f32((
-            (1 - alphas_cumprod_prev) / (1 - alphas_cumprod)
-        ) * betas)
-        # (11 in [0])
-        self.posterior_mean_coef_x_0 = f32((th.sqrt(alphas_cumprod_prev) * betas) / (
-            1 - alphas_cumprod
-        ))
-        self.posterior_mean_coef_x_t = f32((alphas.sqrt() * (1 - alphas_cumprod_prev)) / (
-            1 - alphas_cumprod
-        ))
+        def setup_q_posterior_mean():
+            # (11 in [0])
+            self.posterior_mean_coef_x_0 = f32((th.sqrt(alphas_cumprod_prev) * betas) / (
+                1 - alphas_cumprod
+            ))
+            self.posterior_mean_coef_x_t = f32((th.sqrt(alphas) * (1 - alphas_cumprod_prev)) / (
+                1 - alphas_cumprod
+            ))
 
-        # (9 in [0]) -- used to go forward in the diffusion process
-        self.sqrt_alphas_cumprod = f32(th.sqrt(alphas_cumprod))
-        self.sqrt_one_minus_alphas_cumprod = f32(th.sqrt((1 - alphas_cumprod)))
+        def setup_q_posterior_log_variance():
+            # (10 in [0])
+            posterior_variance = f32((
+                (1 - alphas_cumprod_prev) / (1 - alphas_cumprod)
+            ) * betas)
+            # clipped to avoid log(0) == -inf b/c posterior variance is 0
+            # at start of diffusion chain
+            assert alphas_cumprod_prev[0] == 1 and posterior_variance[0] == 0
+            self.posterior_log_variance_clipped = f32(th.log(
+                F.pad(posterior_variance[1:], (1, 0), value=posterior_variance[1])
+            ))
+
+        def setup_q_sample():
+            # (9 in [0]) -- used to go forward in the diffusion process
+            self.sqrt_alphas_cumprod = f32(th.sqrt(alphas_cumprod))
+            self.sqrt_one_minus_alphas_cumprod = f32(th.sqrt((1 - alphas_cumprod)))
+
+        setup_q_sample()
+        setup_q_posterior_mean()
+        setup_q_posterior_log_variance()
 
         # Used to calculate the variance from the model prediction
         self.log_betas = f32(th.log(betas))
-        # clipped to avoid log(0) == -inf
-        # In other words, posterior variance is 0 at the start of the diffusion chain
-        assert alphas_cumprod_prev[0] == 1 and self.posterior_variance[0] == 0
-        self.posterior_log_variance_clipped = f32(th.log(
-            F.pad(self.posterior_variance[1:], (1, 0), value=self.posterior_variance[1])
-        ))
 
         # Used to predict x_0 from eps & x_t
         # OpenAI code does:
@@ -101,7 +109,7 @@ class GaussianDiffusion:
         self.sqrt_recip_alphas_cumprod_minus1 = f32(th.sqrt((1 / alphas_cumprod) - 1))
 
     # (12) in [0]
-    def q_posterior_mean_variance(self, x_start, x_t, t):
+    def q_posterior_mean(self, x_start, x_t, t):
         """
         Calculate the mean and variance of the normal distribution q(x_{t-1}|x_t, x_0)
 
@@ -113,10 +121,10 @@ class GaussianDiffusion:
         :param t: The current timestep (batch)
         """
         mean = (
-            extract_for_timesteps(self.posterior_mean_coef_x_0, t) * x_start
-            + extract_for_timesteps(self.posterior_mean_coef_x_t, t) * x_t
+            extract_for_timesteps(self.posterior_mean_coef_x_0, t, x_start.shape) * x_start
+            + extract_for_timesteps(self.posterior_mean_coef_x_t, t, x_start.shape) * x_t
         )
-        return mean, extract_for_timesteps(self.posterior_variance, t)
+        return mean
 
     def q_sample(self, x_0, t, noise):
         """
@@ -149,7 +157,7 @@ class GaussianDiffusion:
 
     def model_v_to_log_variance(self, v, t):
         # Turn the model output into a variance (15) in [0]
-        min_log = extract_for_timesteps(self.log_posterior_variance_clipped, t)
+        min_log = extract_for_timesteps(self.posterior_log_variance_clipped, t)
         max_log = extract_for_timesteps(self.log_betas, t)
 
         # Model outputs between [-1, 1] for [min_var, max_var]
@@ -175,7 +183,7 @@ class GaussianDiffusion:
         if threshold:
             # Question: Why do we apply clamping before q_posterior?
             pred_x_0 = pred_x_0.clamp(-1, 1)
-        pred_mean, _, _ = self.q_posterior_mean_variance(pred_x_0, x_t, t)
+        pred_mean = self.q_posterior_mean(pred_x_0, x_t, t)
         pred_log_var = self.model_v_to_log_variance(model_v, t)
         return pred_mean, pred_log_var
 
@@ -197,7 +205,8 @@ class GaussianDiffusion:
         mse_loss = mean_flat((noise - model_eps) ** 2)
 
         # calculate the variational lower bound
-        true_mean, _, true_log_var_clipped = self.q_posterior_mean_variance(x_0, x_t, t)
+        true_mean  = self.q_posterior_mean(x_0, x_t, t)
+        true_log_var_clipped = extract_for_timesteps(self.posterior_log_variance_clipped, t, x_t.shape)
 
         pred_mean, pred_log_var = self.p_mean_variance(
             x_t, t, model_v, model_eps, threshold=False

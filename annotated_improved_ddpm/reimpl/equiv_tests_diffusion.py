@@ -5,7 +5,7 @@ from openai_diffusion import (
     ModelVarType,
     LossType,
 )
-from diffusion import cosine_betas, GaussianDiffusion as MyGaussianDiffusion
+from diffusion import cosine_betas, GaussianDiffusion as MyGaussianDiffusion, extract_for_timesteps
 
 import torch as th
 from torch import testing
@@ -34,7 +34,7 @@ def test_gaussian_diffusion_vars():
 
     my_gd = MyGaussianDiffusion(betas)
     f32 = lambda x: th.from_numpy(x).to(th.float32)
-    testing.assert_close(f32(gd.posterior_variance), my_gd.posterior_variance)
+    # testing.assert_close(f32(gd.posterior_variance), my_gd.posterior_variance)
     testing.assert_close(f32(gd.posterior_mean_coef1), my_gd.posterior_mean_coef_x_0)
     testing.assert_close(f32(gd.posterior_mean_coef2), my_gd.posterior_mean_coef_x_t)
     testing.assert_close(f32(gd.posterior_log_variance_clipped), my_gd.posterior_log_variance_clipped)
@@ -63,13 +63,22 @@ def test_gaussian_diffusion_funcs():
     my_gd = MyGaussianDiffusion(betas)
 
     N, C, H, W = 2, 3, 64, 64
-    img = th.randn((N, C, H, W))
-    noise = th.randn_like(img)
+    x_0 = th.randn((N, C, H, W))
+    noise = th.randn_like(x_0)
     t =  th.tensor([295, 2253])
 
-    x_t = gd.q_sample(img, t, noise)
-    my_x_t = my_gd.q_sample(img, t, noise)
+    x_t = gd.q_sample(x_0, t, noise)
+    my_x_t = my_gd.q_sample(x_0, t, noise)
     testing.assert_close(x_t, my_x_t)
+
+    x_tm1, _, log_var = gd.q_posterior_mean_variance(x_0, x_t, t)
+    print(log_var.shape, x_tm1.shape)
+    my_x_tm1 = my_gd.q_posterior_mean(x_0, x_t, t)
+    my_log_var = extract_for_timesteps(my_gd.posterior_log_variance_clipped, t, x_tm1.shape)
+
+    assert (my_log_var == log_var).all()
+    testing.assert_close(x_tm1, my_x_tm1)
+
     print("test_gaussian_diffusion_funcs passed")
 
 test_gaussian_diffusion_funcs()
