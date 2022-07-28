@@ -10,6 +10,14 @@ from diffusion import cosine_betas, GaussianDiffusion as MyGaussianDiffusion, ex
 import torch as th
 from torch import testing
 
+# throwing in a test for `torch.gather` intuition
+def test_torch_gather():
+    x = th.tensor([1, 2, 3])
+    vals = x.gather(0, th.tensor([0, 2]))
+    testing.assert_close(vals, th.tensor([1, 3]))
+    print("test_torch_gather passed")
+
+test_torch_gather()
 
 def test_cosine_betas():
     T = 4000

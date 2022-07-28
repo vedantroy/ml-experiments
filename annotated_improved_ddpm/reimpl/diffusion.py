@@ -45,15 +45,18 @@ def cosine_betas(timesteps, s=0.008, max_beta=0.999):
     return betas.clamp(0, max_beta)
 
 
-#def extract_for_timesteps(x, timesteps, broadcast_shape):
-#    # This will most certainly need to be fixed later
-#    vals = x[timesteps]
-#    return vals
-
-def extract_for_timesteps(a, t, x_shape):
+def extract_for_timesteps(a, t, broadcast_shape):
     b, *_ = t.shape
-    out = a.gather(-1, t)
-    return out.reshape(b, *((1,) * (len(x_shape) - 1)))
+
+    # `a` should always be a 1D tensor of
+    # values that exist at every timestep
+    assert len(a.shape) == 1
+
+    # use `t` as an index tensor to extract values
+    # at a given timestep
+    out = a.gather(0, t)
+    # add dimensions until `out` is broadcastable
+    return out.reshape(b, *((1,) * (len(broadcast_shape) - 1)))
 
 def f32(x):
     return x.to(th.float32)
