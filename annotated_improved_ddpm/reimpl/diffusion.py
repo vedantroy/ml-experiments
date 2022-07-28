@@ -151,14 +151,14 @@ class GaussianDiffusion:
         # predict x_0
         # (re-arrange & simplify (9) in [0] to solve for x_0)
         return (
-            x_t * extract_for_timesteps(self.recip_sqrt_alphas_cumprod, t)
-            - extract_for_timesteps(self.sqrt_recip_alphas_cumprod_minus1, t) * eps
+            x_t * extract_for_timesteps(self.recip_sqrt_alphas_cumprod, t, x_t.shape)
+            - extract_for_timesteps(self.sqrt_recip_alphas_cumprod_minus1, t, x_t.shape) * eps
         )
 
     def model_v_to_log_variance(self, v, t):
         # Turn the model output into a variance (15) in [0]
-        min_log = extract_for_timesteps(self.posterior_log_variance_clipped, t)
-        max_log = extract_for_timesteps(self.log_betas, t)
+        min_log = extract_for_timesteps(self.posterior_log_variance_clipped, t, v.shape)
+        max_log = extract_for_timesteps(self.log_betas, t, v.shape)
 
         # Model outputs between [-1, 1] for [min_var, max_var]
         frac = (v + 1) / 2
