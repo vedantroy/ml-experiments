@@ -91,14 +91,6 @@ def save_tensor(t, name):
         f.write(buf_bytes)
 
 
-#class Residual(nn.Module):
-#    def __init__(self, fn):
-#        super().__init__()
-#        self.fn = fn
-#
-#    def forward(self, x, **kwargs):
-#        return self.fn(x, **kwargs) + x
-
 class ResNetBlock(nn.Module):
     def __init__(self, in_channels: int, out_channels: int, time_emb_channels: int):
         super().__init__()
@@ -278,6 +270,32 @@ class MyResBlock(nn.Module):
         # so, skip dropout
         return self.skip_projection(_x) + x
 
+    
+class Residual(nn.Module):
+    def __init__(self, fn):
+        super().__init__()
+        self.fn = fn
+
+    def forward(self, x, **kwargs):
+        return self.fn(x, **kwargs) + x
+
+class MyAttentionBlock2(nn.Module):
+    def __init__(self, channels, num_heads):
+        super().__init__()
+        self.layers = nn.Sequential(
+            normalization(channels),
+            nn.Conv1d(channels, channels * 3, kernel_size=1),
+            Rearrange("b (heads c) s -> (b heads) c s", heads=num_heads),
+            MyQKVAttention(),
+            Rearrange("(b heads) c s -> b (heads c) s", heads=num_heads),
+            zero_module(nn.Conv1d(channels, channels, kernel_size=1))
+        )
+
+    def forward(self, x):
+        _, _, H, W = x.shape
+        x = rearrange(x, "b c h w -> b c (h w)")
+        h = self.layers(x)
+        return rearrange(x + h, "b c (h w) -> b c h w", h=H, w=W)
 
 class MyQKVAttention(nn.Module):
     def forward(self, qkv):
@@ -312,6 +330,29 @@ class MyQKVAttention(nn.Module):
         # Fill in the last parameter
         return th.einsum("bst,bdt->bds", attn, v)
 
+class MyAttentionBlock3(nn.Module):
+    def __init__(self, channels, num_heads):
+        super().__init__()
+        self.channels = channels
+        self.num_heads = num_heads
+
+        self.norm = normalization(channels)
+        self.qkv = nn.Conv1d(channels, channels * 3, kernel_size=1)
+        self.attention = MyQKVAttention()
+        self.proj_out = zero_module(nn.Conv1d(channels, channels, kernel_size=1))
+
+    def forward(self, x):
+        _, _, H, W = x.shape
+        _x = x
+        x = rearrange(x, "b c h w -> b c (h w)")
+        x = self.norm(x)
+        qkv = self.qkv(x)
+        qkv = rearrange(qkv, "b (heads c) s -> (b heads) c s", heads=self.num_heads)
+        h = self.attention(qkv)
+        h = rearrange(h, "(b heads) c s -> b (heads c) s", heads=self.num_heads)
+        h = self.proj_out(h)
+        return _x + rearrange(h, "b c (h w) -> b c h w", h=H, w=W)
+
 
 class MyAttentionBlock(nn.Module):
     def __init__(self, channels, num_heads):
@@ -327,8 +368,8 @@ class MyAttentionBlock(nn.Module):
     def forward(self, x):
         _, _, H, W = x.shape
         x = rearrange(x, "b c h w -> b c (h w)")
-        x = self.norm(x)
-        qkv = self.qkv(x)
+        _x = self.norm(x)
+        qkv = self.qkv(_x)
         qkv = rearrange(qkv, "b (heads c) s -> (b heads) c s", heads=self.num_heads)
         h = self.attention(qkv)
         h = rearrange(h, "(b heads) c s -> b (heads c) s", heads=self.num_heads)

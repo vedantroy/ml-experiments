@@ -265,9 +265,9 @@ class AttentionBlock(nn.Module):
         # Flatten the input into a single sequence
         x = x.reshape(b, c, -1)
         assert x.shape == (b, c, H * W)
-        x = self.norm(x)
+        _x = self.norm(x)
         assert x.shape == (b, c, H * W)
-        qkv = self.qkv(x)
+        qkv = self.qkv(_x)
         assert qkv.shape == (b, c * 3, H * W)
         qkv = qkv.reshape(b * self.num_heads, -1, qkv.shape[2])
         assert qkv.shape == (b * self.num_heads, c * 3 / self.num_heads, H * W)
@@ -283,7 +283,6 @@ class AttentionBlock(nn.Module):
         # reshape back into H, W
         # Also, this is a residual connection inside attention?
         return (x + h).reshape(b, c, *spatial)
-
 
 class QKVAttention(nn.Module):
     """

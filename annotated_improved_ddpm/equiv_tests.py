@@ -7,6 +7,9 @@ from my_unet import (
     ResNetBlock,
     MyAttentionBlock,
     MyUpsample,
+    MyAttentionBlock2,
+    Residual,
+    MyAttentionBlock3,
 )
 
 th.manual_seed(42)
@@ -186,6 +189,36 @@ def test_attention():
         assert expected.shape == actual.shape
         assert (expected == actual).all()
 
+def test_attention_2():
+    return
+    channels = 512
+    block = AttentionBlock(channels, num_heads=2).cuda()
+    myblock = MyAttentionBlock3(channels, num_heads=2).cuda()
+    # myblock = Residual(MyAttentionBlock2(channels, num_heads=2)).cuda()
+    # myblock = MyAttentionBlock(channels, num_heads=2).cuda()
+
+    x = th.randn((2, channels, 8, 8)).cuda()
+
+    with th.no_grad():
+        expected = block(x)
+        actual = myblock(x)
+
+        # This will be trivially true, since we initialize
+        # the last convolution to all 0s
+        assert (expected == actual).all()
+
+        return
+
+        assert isinstance(myblock.fn[6], th.nn.Conv2d)
+        init_layer(myblock.fn[6])
+        copy_weight(block.qkv, myblock.fn[2])
+        copy_weight(block.proj_out, myblock.fn[6])
+        copy_weight(block.norm, myblock.fn[1])
+
+        expected = block(x)
+        actual = myblock(x)
+        assert expected.shape == actual.shape
+        assert (expected == actual).all()
 
 def test_samples():
     chan = 128
@@ -212,5 +245,6 @@ test_qkv()
 test_attention()
 test_samples()
 test_new_res_block()
+test_attention_2()
 
 print('tests passed')
