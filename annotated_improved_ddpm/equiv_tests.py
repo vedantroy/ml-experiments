@@ -9,7 +9,7 @@ from my_unet import (
     MyUpsample,
     MyAttentionBlock2,
     Residual,
-    MyAttentionBlock3,
+    #MyAttentionBlock3,
 )
 
 th.manual_seed(42)
@@ -190,12 +190,9 @@ def test_attention():
         assert (expected == actual).all()
 
 def test_attention_2():
-    return
     channels = 512
     block = AttentionBlock(channels, num_heads=2).cuda()
-    myblock = MyAttentionBlock3(channels, num_heads=2).cuda()
-    # myblock = Residual(MyAttentionBlock2(channels, num_heads=2)).cuda()
-    # myblock = MyAttentionBlock(channels, num_heads=2).cuda()
+    myblock = Residual(MyAttentionBlock2(channels, num_heads=2)).cuda()
 
     x = th.randn((2, channels, 8, 8)).cuda()
 
@@ -207,13 +204,11 @@ def test_attention_2():
         # the last convolution to all 0s
         assert (expected == actual).all()
 
-        return
-
-        assert isinstance(myblock.fn[6], th.nn.Conv2d)
-        init_layer(myblock.fn[6])
-        copy_weight(block.qkv, myblock.fn[2])
-        copy_weight(block.proj_out, myblock.fn[6])
-        copy_weight(block.norm, myblock.fn[1])
+        assert isinstance(myblock.fn.layers[6], th.nn.Conv1d)
+        init_layer(myblock.fn.layers[6])
+        copy_weight(block.qkv, myblock.fn.layers[2])
+        copy_weight(block.proj_out, myblock.fn.layers[6])
+        copy_weight(block.norm, myblock.fn.layers[1])
 
         expected = block(x)
         actual = myblock(x)
