@@ -4,6 +4,7 @@ from my_unet import (
     MyDownsample,
     MyQKVAttention,
     MyResBlock,
+    ResNetBlock,
     MyAttentionBlock,
     MyUpsample,
 )
@@ -99,6 +100,54 @@ def test_res_block():
         actual = myblock(x, t, dbg_b)
         assert (expected == actual).all()
 
+def test_new_res_block():
+    res_block_params = dict(
+        channels=128,
+        emb_channels=512,
+        dropout=0.0,
+        out_channels=128,
+        use_conv=False,
+        use_scale_shift_norm=True,
+        dims=2,
+        use_checkpoint=False,
+    )
+
+    block = ResBlock(**res_block_params).cuda()
+    myblock = ResNetBlock(
+        res_block_params["channels"],
+        res_block_params["out_channels"],
+        res_block_params["emb_channels"],
+    ).cuda()
+
+    copy_weight(myblock.in_layers[0], block.in_layers[0])
+    copy_weight(myblock.in_layers[2], block.in_layers[2])
+    copy_weight(myblock.emb_layers[1], block.emb_layers[1])
+    copy_weight(myblock.out_norm, block.out_layers[0])
+    copy_weight(myblock.out_layers[1], block.out_layers[3])
+
+    x = th.randn((2, 128, 64, 64)).type(th.float32).cuda()
+    t = th.randn((2, 512)).type(th.float32).cuda()
+
+    with th.no_grad():
+        expected = block(x, t)
+        actual = myblock(x, t)
+        assert expected.shape == actual.shape
+        assert not same_storage(x, expected)
+        assert not same_storage(x, actual)
+
+        assert (x == expected).all()
+        assert (x == actual).all()
+
+        # During initialization, the last convolution layer is all 0s
+        # which makes the res block act like an identity layer
+        # So, do random initialization for more rigorous testing
+        init_layer(block.out_layers[3])
+        copy_weight(myblock.out_layers[1], block.out_layers[3])
+
+        expected = block(x, t)
+        actual = myblock(x, t)
+        assert (expected == actual).all()
+
 
 def test_qkv():
     block = QKVAttention().cuda()
@@ -162,5 +211,6 @@ test_res_block()
 test_qkv()
 test_attention()
 test_samples()
+test_new_res_block()
 
 print('tests passed')

@@ -5,6 +5,7 @@ from torch import nn, zero_
 import torch.nn.functional as F
 import torch as th
 from einops import rearrange
+from einops.layers.torch import Rearrange
 
 # OpenAI's diffusion model defaults
 # NOTE: some of these are NOT optimal--e.g., using linear instead of cosine schedule
@@ -89,6 +90,65 @@ def save_tensor(t, name):
     with open(name, "wb") as f:
         f.write(buf_bytes)
 
+
+#class Residual(nn.Module):
+#    def __init__(self, fn):
+#        super().__init__()
+#        self.fn = fn
+#
+#    def forward(self, x, **kwargs):
+#        return self.fn(x, **kwargs) + x
+
+class ResNetBlock(nn.Module):
+    def __init__(self, in_channels: int, out_channels: int, time_emb_channels: int):
+        super().__init__()
+        self.out_channels = out_channels
+
+        self.in_layers = nn.Sequential(
+            normalization(in_channels),
+            nn.SiLU(),
+            nn.Conv2d(in_channels, out_channels, kernel_size=3, padding=1),
+        )
+
+        self.emb_layers = nn.Sequential(
+            nn.SiLU(),
+            nn.Linear(in_features=time_emb_channels, out_features=2 * out_channels),
+            Rearrange("b (split c) -> split b c 1 1", split=2),
+        )
+
+        self.out_norm = normalization(out_channels)
+        self.out_layers = nn.Sequential(
+            nn.SiLU(),
+            zero_module(
+                nn.Conv2d(
+                    in_channels=out_channels,
+                    out_channels=out_channels,
+                    kernel_size=3,
+                    padding=1,
+                )
+            )
+        )
+
+        if in_channels == out_channels:
+            self.skip_projection = nn.Identity()
+        else:
+            self.skip_projection = nn.Conv2d(
+                in_channels=in_channels, out_channels=out_channels, kernel_size=1
+            )
+
+    def forward(self, x, emb):
+        N, _, H, W = x.shape
+        _x = x
+        x = self.in_layers(x)
+        assert x.shape == (N, self.out_channels, H, W)
+
+        cond_w, cond_b = self.emb_layers(emb)
+        assert cond_w.shape == cond_b.shape
+        assert cond_w.shape == (N, self.out_channels, 1, 1)
+
+        x = self.out_norm(x) * (1 + cond_w) + cond_b
+        x = self.out_layers(x)
+        return self.skip_projection(_x) + x
 
 class MyResBlock(nn.Module):
     """
